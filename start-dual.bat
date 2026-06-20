@@ -3,7 +3,7 @@ cd /d "%~dp0"
 title Node32-HUB Configurator
 set "PSFILE=%TEMP%\n32hub_srv.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$l=@(Get-Content '%~f0'|Where-Object{$_ -like '##*'});$l=$l-replace'^##','';[IO.File]::WriteAllLines('%PSFILE%',$l,[Text.Encoding]::UTF8);&'%PSFILE%';Remove-Item '%PSFILE%'"
-pause
+if errorlevel 1 pause
 exit /b
 ## # Node32-HUB Unified Server
 ## $port=8765;$root=(Get-Location).Path
@@ -75,15 +75,15 @@ exit /b
 ## }
 ## $tool=Find-Esptool;$mkfs=Find-Tool 'mklittlefs'
 ## $lanIps=Get-LanIp
+## $l=[Net.HttpListener]::new();$l.Prefixes.Add("http://localhost:$port/");$l.Prefixes.Add("http://+:$port/")
+## try{$l.Start();$lan=$true}catch{$l.Close();$l=[Net.HttpListener]::new();$l.Prefixes.Add("http://localhost:$port/");$l.Start();$lan=$false}
 ## Write-Host "Node32-HUB Server" -ForegroundColor Cyan
-## Write-Host "  Local:  http://localhost:$port/" -ForegroundColor Green
-## foreach($ip in $lanIps){Write-Host "  LAN:    http://$ip`:$port/" -ForegroundColor Green}
-## $link=if($lanIps.Count-gt0){"http://$($lanIps[0]):$port/"}else{"http://localhost:$port/"}
+## if($lan){Write-Host "  Local:  http://localhost:$port/" -ForegroundColor Green;foreach($ip in $lanIps){Write-Host "  LAN:    http://$ip`:$port/" -ForegroundColor Green}}else{Write-Host "  http://localhost:$port/" -ForegroundColor Green;Write-Host "  LAN:    run as admin for LAN access" -ForegroundColor DarkYellow}
+## $link=if($lan -and $lanIps.Count -gt 0){"http://$($lanIps[0]):$port/"}else{"http://localhost:$port/"}
 ## Write-Host "  Browser: $link" -ForegroundColor White
 ## Write-Output ""
 ## Write-Host "esptool: $(!!$tool) | mklittlefs: $(!!$mkfs) | WiFi save: $(if($tool-and$mkfs){'ON'}else{'OFF (install mklittlefs+esptool)'})" -ForegroundColor Yellow
 ## Write-Output ""
-## $l=[Net.HttpListener]::new();$l.Prefixes.Add("http://localhost:$port/");try{$l.Prefixes.Add("http://+:$port/")}catch{};$l.Start()
 ## Start-Process $link
 ## while($l.IsListening) {
 ##   try{$c=$l.GetContext();$r=$c.Request;$p=$r.Url.AbsolutePath.ToLowerInvariant()
