@@ -288,58 +288,68 @@ function doSaveWifi() {
         customAlert('WiFi backend is not running.\n\nRun start-dual.bat or start-backend.bat first.');
         return;
     }
-    if (!serialPort) {
-        customAlert('Connect to the board via WebSerial first.');
-        return;
-    }
     var ssid = wifiSsid.value.trim();
     if (!ssid) {
         customAlert('Enter a network name (SSID).');
         return;
     }
     var password = wifiPass.value;
+    var portName = wifiPort.value.trim();
+    if (!portName) {
+        setWifiStatus('err', 'Enter the COM port (e.g. COM3) in the Port field above.');
+        return;
+    }
 
     setWifiStatus('saving', 'Saving WiFi config to board...');
     saveWifiBtn.disabled = true;
 
-    var portName = (serialPort && serialPort.name) || savedPortName || wifiPort.value.trim() || '';
-    if (!portName) {
-        setWifiStatus('err', 'Enter the COM port (e.g. COM3) in the Port field above.');
-        saveWifiBtn.disabled = false;
-        return;
+    // Close WebSerial port so esptool can open it
+    function doFetch() {
+        var payload = JSON.stringify({
+            port: portName,
+            chip: chipDetected || boardEl.value || 'esp32s3',
+            ssid: ssid,
+            password: password
+        });
+        fetch(BACKEND_URL + '/save-wifi', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d && d.success) {
+                setWifiStatus('done', 'WiFi config saved! Board will reboot.');
+                customAlert('WiFi config saved successfully!\nSSID: ' + ssid);
+                wifiPass.value = '';
+            } else {
+                var errMsg = d && d.message ? d.message : 'Unknown error';
+                setWifiStatus('err', 'Failed: ' + errMsg);
+                customAlert('Save failed:\n' + errMsg);
+            }
+        })
+        .catch(function(err){
+            setWifiStatus('err', 'Backend error: ' + (err.message || err));
+            customAlert('Could not reach backend.\nCheck that start-backend.bat is running.');
+        })
+        .finally(function(){
+            saveWifiBtn.disabled = false;
+            updateWifiBtn();
+        });
     }
-    var payload = JSON.stringify({
-        port: portName,
-        chip: chipDetected || boardEl.value || 'esp32s3',
-        ssid: ssid,
-        password: password
-    });
 
-    fetch(BACKEND_URL + '/save-wifi', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-        if (d && d.success) {
-            setWifiStatus('done', 'WiFi config saved! Board will reboot.');
-            customAlert('WiFi config saved successfully!\nSSID: ' + ssid);
-            wifiPass.value = '';
-        } else {
-            var errMsg = d && d.message ? d.message : 'Unknown error';
-            setWifiStatus('err', 'Failed: ' + errMsg);
-            customAlert('Save failed:\n' + errMsg);
-        }
-    })
-    .catch(function(err){
-        setWifiStatus('err', 'Backend error: ' + (err.message || err));
-        customAlert('Could not reach backend.\nCheck that start-backend.bat is running.');
-    })
-    .finally(function(){
-        saveWifiBtn.disabled = false;
-        updateWifiBtn();
-    });
+    if (serialPort && transport) {
+        try { transport.disconnect(); } catch(e){}
+        try { serialPort.close(); } catch(e){}
+        serialPort = null;
+        transport = null;
+        esploader = null;
+        setPortState(false, 'Disconnected');
+        // Small delay to let OS release the port
+        setTimeout(doFetch, 500);
+    } else {
+        doFetch();
+    }
 }
 
 function customAlert(msg) {
@@ -399,7 +409,7 @@ async function onConnect() {
     try {
         serialPort = await navigator.serial.requestPort();
         savedPortName = serialPort.name || '';
-        wifiPort.value = savedPortName;
+        if (savedPortName) wifiPort.value = savedPortName;
         statusDot.className = 'dot yellow';
         portLabel.textContent = 'Opening…';
 
