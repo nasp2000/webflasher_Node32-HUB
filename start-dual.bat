@@ -58,6 +58,7 @@ exit /b
 ## function Handle-SaveWifi($c,$r) {
 ##   $rd=[IO.StreamReader]::new($r.InputStream,[Text.Encoding]::UTF8);$raw=$rd.ReadToEnd();$rd.Close();$b=$raw|ConvertFrom-Json
 ##   if(!$b.ssid){Send-Json $c @{success=$false;message='Missing SSID'}400;return}
+##   if(!$b.port){Send-Json $c @{success=$false;message='Missing port — reconnect the board before saving WiFi'}400;return}
 ##   if(!$mkfs){Send-Json $c @{success=$false;message='mklittlefs not installed'}500;return}
 ##   if(!$tool){Send-Json $c @{success=$false;message='esptool not installed'}500;return}
 ##   $imgResult=New-LfsImage $b.ssid $b.password

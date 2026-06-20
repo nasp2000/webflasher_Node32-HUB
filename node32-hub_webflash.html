@@ -292,7 +292,7 @@ function doSaveWifi() {
     setWifiStatus('saving', 'Saving WiFi config to board...');
     saveWifiBtn.disabled = true;
 
-    var portName = serialPort.name || serialPort.getInfo().usbProductId || 'COM';
+    var portName = serialPort.name || '';
     var payload = JSON.stringify({
         port: portName,
         chip: chipDetected || boardEl.value || 'esp32s3',
