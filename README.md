@@ -20,6 +20,9 @@ start-dual.bat
 
 Opens `http://localhost:8765/` in your browser. The server also listens on your LAN IP — check the console output.
 
+> [!TIP]
+> **For firmware updates, use the OTA page on Node32‑HUB** (`http://node32-hub/update`) whenever the board is already running and connected to the network. The USB WebFlasher is intended for **initial flash** or when OTA is unavailable.
+
 ### Manual
 1. Connect the ESP32 via USB
 2. Open `start-dual.bat` (or serve the HTML via any HTTP server on port 8765)

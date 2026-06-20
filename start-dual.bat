@@ -3,7 +3,7 @@ cd /d "%~dp0"
 title Node32-HUB Configurator
 set "PSFILE=%TEMP%\n32hub_srv.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$l=@(Get-Content '%~f0'|Where-Object{$_ -like '##*'});$l=$l-replace'^##','';[IO.File]::WriteAllLines('%PSFILE%',$l,[Text.Encoding]::UTF8);&'%PSFILE%';Remove-Item '%PSFILE%'"
-if errorlevel 1 pause
+pause
 exit /b
 ## # Node32-HUB Unified Server
 ## $port=8765;$root=(Get-Location).Path
