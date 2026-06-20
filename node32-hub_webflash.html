@@ -83,8 +83,9 @@ select option{background:#1e2e3f}
 .board-ip-display .ip-label{color:#6ee7b7;font-size:0.82em;font-weight:600}
 .board-ip-display .ip-value{color:#fff;font-size:1.1em;font-weight:700;margin-left:10px}
 
-.config-section{margin-top:18px;border-top:1px solid #4a6a8a;padding-top:14px}
-.config-section h3{color:#60d5fa;font-size:0.9em;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.flash-section,.config-section{border:1px solid #334155;border-radius:10px;padding:16px;margin-bottom:16px;background:#0f172a}
+.flash-section h3,.config-section h3{color:#60d5fa;font-size:0.9em;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.flash-section{margin-top:14px}
 .wifi-row{margin-bottom:10px}
 .wifi-row:last-of-type{margin-bottom:12px}
 .save-status{font-size:0.78em;padding:6px 10px;border-radius:6px;margin-bottom:10px;display:none}
@@ -111,6 +112,8 @@ select option{background:#1e2e3f}
     <button class="btn danger" id="disconnectBtn" style="display:none">Disconnect</button>
 </div>
 
+<div class="flash-section">
+<h3>Flash</h3>
 <div class="row">
     <label for="board">Board</label>
     <select id="board">
@@ -159,6 +162,7 @@ select option{background:#1e2e3f}
 <div class="board-ip-display" id="boardIpDisplay">
     <span class="ip-label">Board IP</span>
     <span class="ip-value" id="boardIpText"></span>
+</div>
 </div>
 
 <div class="config-section">
