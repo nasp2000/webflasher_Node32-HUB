@@ -177,7 +177,7 @@ select option{background:#1e2e3f}
         <label for="wifiPass">Password</label>
         <input type="text" id="wifiPass" placeholder="Leave empty for open networks" autocomplete="off">
     </div>
-    <button class="btn save" id="saveWifiBtn" disabled>Add WiFi</button>
+    <button class="btn save" id="saveWifiBtn" disabled>Save WiFi & Reboot</button>
 </div>
 <div class="board-ip-display" id="boardIpDisplay">
     <span class="ip-label">Board IP</span>
@@ -277,7 +277,7 @@ function updateWifiBtn() {
     if (!serialPort) {
         saveWifiBtn.innerHTML = 'Connect to board first';
     } else {
-        saveWifiBtn.innerHTML = 'Save WiFi to board';
+        saveWifiBtn.innerHTML = 'Save WiFi & Reboot';
     }
 }
 
@@ -303,8 +303,23 @@ async function doSaveWifi() {
         await writer.write(encoder.encode(cmd));
         writer.releaseLock();
 
-        setWifiStatus('done', 'WiFi config sent! Check serial monitor for confirmation.');
+        setWifiStatus('saving', 'WiFi config sent — saving and rebooting…');
         wifiPass.value = '';
+
+        // Wait for the board to save config, then hardware-reset via DTR/RTS
+        await new Promise(function(r) { setTimeout(r, 1500); });
+
+        try {
+            await serialPort.setSignals({ dataTerminalReady: false, requestToSend: true });
+            await new Promise(function(r) { setTimeout(r, 100); });
+            await serialPort.setSignals({ dataTerminalReady: true, requestToSend: false });
+            await new Promise(function(r) { setTimeout(r, 100); });
+            await serialPort.setSignals({ dataTerminalReady: false, requestToSend: false });
+        } catch(sigErr) {
+            console.warn('Reset signal failed:', sigErr);
+        }
+
+        setWifiStatus('done', 'WiFi saved — board rebooting with new config.');
     } catch(e) {
         setWifiStatus('err', 'Failed to send command: ' + (e.message || e));
         customAlert('Could not write to serial port:\n' + (e.message || e));
