@@ -202,6 +202,7 @@ var saveWifiBtn = $('saveWifiBtn'), wifiStatus = $('wifiStatus');
 
 // ─── State ───
 var serialPort = null;
+var savedPortName = '';
 var transport = null;
 var esploader = null;
 var chipDetected = '';
@@ -296,7 +297,13 @@ function doSaveWifi() {
     setWifiStatus('saving', 'Saving WiFi config to board...');
     saveWifiBtn.disabled = true;
 
-    var portName = serialPort.name || '';
+    var portName = serialPort.name || savedPortName || '';
+    console.log('WiFi save port:', JSON.stringify(portName));
+    if (!portName) {
+        setWifiStatus('err', 'No serial port selected. Please reconnect the board.');
+        saveWifiBtn.disabled = false;
+        return;
+    }
     var payload = JSON.stringify({
         port: portName,
         chip: chipDetected || boardEl.value || 'esp32s3',
@@ -387,6 +394,7 @@ async function onConnect() {
     if (serialPort) return;
     try {
         serialPort = await navigator.serial.requestPort();
+        savedPortName = serialPort.name || '';
         statusDot.className = 'dot yellow';
         portLabel.textContent = 'Opening…';
 
@@ -445,6 +453,7 @@ async function onDisconnect() {
         }
     } catch(e){}
     serialPort = null;
+    savedPortName = '';
     transport = null;
     esploader = null;
     chipDetected = '';
