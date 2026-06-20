@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Node32-HUB · WebFlash</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+    font-family:system-ui,'Segoe UI',sans-serif;
+    background:#1e3a5f;color:#f0f9ff;min-height:100vh;padding:20px;
+    display:flex;align-items:flex-start;justify-content:center;
+}
+.card{
+    background:#2d3e52;border:2px solid #4a6a8a;border-radius:14px;
+    max-width:640px;width:100%;padding:28px 24px;margin-top:10px;
+}
+h1{text-align:center;color:#60d5fa;font-size:1.6em;margin-bottom:4px;letter-spacing:1px}
+.sub{text-align:center;color:#94a3b8;font-size:0.85em;margin-bottom:18px}
+.row{margin-bottom:14px}
+label{display:block;margin-bottom:3px;color:#94a3b8;font-size:0.82em;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+input,select{
+    width:100%;padding:11px 12px;background:#1e2e3f;border:1px solid #4a6a8a;
+    border-radius:8px;color:#f0f9ff;font-size:14px;
+}
+input:focus,select:focus{outline:none;border-color:#60d5fa;box-shadow:0 0 0 2px rgba(96,213,250,.15)}
+select option{background:#1e2e3f}
+.hint{color:#64748b;font-size:0.78em;margin-top:3px}
+.hint.green{color:#34d399}
+.hint.amber{color:#fbbf24}
+.btn{
+    display:block;width:100%;border:none;border-radius:10px;cursor:pointer;
+    font-weight:700;font-size:15px;padding:13px 20px;transition:background .2s;
+}
+.btn.primary{background:#3b82f6;color:#fff}
+.btn.primary:hover:not(:disabled){background:#2563eb}
+.btn.primary.active{background:#1d4ed8;box-shadow:0 0 0 2px rgba(96,165,250,.4)}
+.btn.secondary{background:#475569;color:#fff}
+.btn.secondary:hover:not(:disabled){background:#64748b}
+.btn.connect{background:#059669;color:#fff}
+.btn.connect:hover:not(:disabled){background:#047857}
+.btn.danger{background:#dc2626;color:#fff}
+.btn.danger:hover:not(:disabled){background:#b91c1c}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+.flash-type{display:flex;gap:10px;margin-bottom:18px}
+.flash-type .btn{flex:1;padding:14px 10px;font-size:14px}
+
+.panel{display:none;background:#1e2e3f;border-radius:10px;padding:16px;margin-bottom:14px;border:1px solid #4a6a8a}
+.panel.show{display:block}
+
+.files-box{background:#0f172a;border-radius:8px;padding:12px;margin-top:8px}
+.files-box .fr{margin-bottom:8px}
+.files-box .fr:last-child{margin-bottom:0}
+.files-box label{font-size:0.78em}
+.files-box input{font-size:13px;padding:8px}
+
+.folder-info{
+    background:#1e293b;border:1px dashed #4a6a8a;border-radius:8px;padding:10px 12px;margin-top:8px;
+    font-size:0.82em;color:#94a3b8;min-height:2.5em;
+}
+.folder-info.ok{color:#34d399;border-color:#34d399}
+.folder-info.err{color:#f87171;border-color:#f87171}
+
+.connect-row{display:flex;gap:10px;margin-bottom:14px}
+.connect-row .port-info{flex:3;background:#1e2e3f;border:1px solid #4a6a8a;border-radius:8px;padding:11px 12px;font-size:0.9em;min-height:2.5em;display:flex;align-items:center;gap:8px}
+.connect-row .port-info .dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}
+.connect-row .port-info .dot.green{background:#34d399}
+.connect-row .port-info .dot.red{background:#f87171}
+.connect-row .port-info .dot.yellow{background:#fbbf24}
+.connect-row .btn{flex:1;white-space:nowrap;padding:11px 16px;font-size:14px}
+
+.pbar{height:6px;background:#1e2e3f;border-radius:3px;margin-top:8px;overflow:hidden;display:none}
+.pbar .pfill{height:100%;background:linear-gradient(90deg,#3b82f6,#60a5fa);width:0%;transition:width .3s}
+.pstatus{text-align:center;font-size:0.82em;color:#94a3b8;margin-top:6px;min-height:1.2em}
+
+.alert-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:999}
+.alert-box{background:#2d3e52;border:2px solid #4a6a8a;border-radius:14px;max-width:480px;width:90%;padding:28px 24px;color:#f0f9ff;text-align:center}
+.alert-box .msg{font-size:15px;line-height:1.5;margin-bottom:18px;white-space:pre-wrap}
+.alert-box .btn{width:auto;min-width:120px;margin:0 auto}
+
+.board-ip-display{display:none;text-align:center;padding:8px;margin-top:10px;background:#065f46;border-radius:8px;border:1px solid #34d399}
+.board-ip-display .ip-label{color:#6ee7b7;font-size:0.82em;font-weight:600}
+.board-ip-display .ip-value{color:#fff;font-size:1.1em;font-weight:700;margin-left:10px}
+
+.config-section{margin-top:18px;border-top:1px solid #4a6a8a;padding-top:14px}
+.config-section h3{color:#60d5fa;font-size:0.9em;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.wifi-row{margin-bottom:10px}
+.wifi-row:last-of-type{margin-bottom:12px}
+.save-status{font-size:0.78em;padding:6px 10px;border-radius:6px;margin-bottom:10px;display:none}
+.save-status.ready{display:block;background:#064e3b;border:1px solid #34d399;color:#6ee7b7}
+.save-status.unavail{display:block;background:#451a03;border:1px solid #d97706;color:#fbbf24}
+.save-status.saving{display:block;background:#1e3a8a;border:1px solid #3b82f6;color:#93c5fd}
+.save-status.done{display:block;background:#064e3b;border:1px solid #34d399;color:#6ee7b7}
+.save-status.err{display:block;background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5}
+.btn.save{background:#8b5cf6;color:#fff;margin-top:4px}
+.btn.save:hover:not(:disabled){background:#7c3aed}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>Node32‑HUB</h1>
+<div class="sub">WebFlash <span id="browserCompat" style="font-size:0.82em;color:#fbbf24">(requires Chrome/Edge 89+)</span> &middot; <a href="https://github.com/nasp2000/webflasher_Node32-HUB" target="_blank" style="color:#60d5fa;text-decoration:none">&#127760; source</a></div>
+
+<div class="connect-row">
+    <div class="port-info" id="portInfo">
+        <span class="dot red" id="statusDot"></span>
+        <span id="portLabel">Disconnected</span>
+    </div>
+    <button class="btn connect" id="connectBtn">Connect</button>
+    <button class="btn danger" id="disconnectBtn" style="display:none">Disconnect</button>
+</div>
+
+<div class="row">
+    <label for="board">Board</label>
+    <select id="board">
+        <option value="auto">Auto‑detect</option>
+        <option value="esp32s3">ESP32‑S3 (N16R8)</option>
+        <option value="esp32p4">ESP32‑P4 (Waveshare)</option>
+    </select>
+</div>
+
+<div class="flash-type">
+    <button class="btn primary active" id="btnUpdate">Update</button>
+    <button class="btn secondary" id="btnFull">Full Install</button>
+</div>
+
+<div class="panel show" id="panelUpdate">
+    <div class="hint green" style="margin-bottom:8px">
+        <strong>Update</strong> — flashes firmware.bin only. Keeps bootloader, partitions, and config.
+    </div>
+    <button class="btn secondary" id="btnPickUpdate">Select build folder…</button>
+    <div class="files-box">
+        <div class="fr"><label>Firmware (.bin)</label><input type="file" id="fwFile" accept=".bin"></div>
+    </div>
+    <div class="folder-info" id="folderInfoUpdate">Select a file or pick the build folder.</div>
+</div>
+
+<div class="panel" id="panelFull">
+    <div class="hint green" style="margin-bottom:8px">
+        <strong>Full Install</strong> — writes bootloader + partitions + firmware. Optionally erases first.
+    </div>
+    <button class="btn secondary" id="btnPickFull">Select build folder…</button>
+    <div class="files-box">
+        <div class="fr"><label>Firmware (.bin)</label><input type="file" id="fwFileFull" accept=".bin"></div>
+        <div class="fr"><label>bootloader.bin</label><input type="file" id="blFile" accept=".bin"></div>
+        <div class="fr"><label>partitions.bin</label><input type="file" id="ptFile" accept=".bin"></div>
+    </div>
+    <div class="folder-info" id="folderInfoFull">Select a build folder or pick the 3 files manually.</div>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px;color:#94a3b8;font-size:0.85em">
+        <input type="checkbox" id="chkErase"> Erase flash before writing (clears all data)
+    </label>
+</div>
+
+<button class="btn primary" id="flashBtn" disabled>Connect first</button>
+<div class="pbar" id="pbar"><div class="pfill" id="pfill"></div></div>
+<div class="pstatus" id="pstatus"></div>
+
+<div class="board-ip-display" id="boardIpDisplay">
+    <span class="ip-label">Board IP</span>
+    <span class="ip-value" id="boardIpText"></span>
+</div>
+
+<div class="config-section">
+    <h3>WiFi Config</h3>
+    <div class="save-status" id="wifiStatus"></div>
+    <div class="wifi-row">
+        <label for="wifiSsid">SSID</label>
+        <input type="text" id="wifiSsid" placeholder="Network name" autocomplete="off">
+    </div>
+    <div class="wifi-row">
+        <label for="wifiPass">Password</label>
+        <input type="text" id="wifiPass" placeholder="Leave empty for open networks" autocomplete="off">
+    </div>
+    <button class="btn save" id="saveWifiBtn" disabled>Save WiFi to board</button>
+</div>
+
+</div>
+
+<script type="module">
+import { ESPLoader, Transport } from "./lib/esptool-js-bundle.js";
+
+// ─── DOM refs ───
+var $ = function(id) { return document.getElementById(id); };
+var boardEl = $('board');
+var connectBtn = $('connectBtn'), disconnectBtn = $('disconnectBtn');
+var portLabel = $('portLabel'), statusDot = $('statusDot');
+var flashBtn = $('flashBtn'), pbar = $('pbar'), pfill = $('pfill'), pstatus = $('pstatus');
+var btnUpdate = $('btnUpdate'), btnFull = $('btnFull');
+var panelUpdate = $('panelUpdate'), panelFull = $('panelFull');
+var fwFile = $('fwFile'), fwFileFull = $('fwFileFull');
+var blFile = $('blFile'), ptFile = $('ptFile');
+var chkErase = $('chkErase');
+var folderInfoUpdate = $('folderInfoUpdate'), folderInfoFull = $('folderInfoFull');
+var browserCompat = $('browserCompat');
+var wifiSsid = $('wifiSsid'), wifiPass = $('wifiPass');
+var saveWifiBtn = $('saveWifiBtn'), wifiStatus = $('wifiStatus');
+
+// ─── State ───
+var serialPort = null;
+var transport = null;
+var esploader = null;
+var chipDetected = '';
+var flashType = 'update';
+var _fw = null, _bl = null, _pt = null;
+var BACKEND_URL = '';
+var backendAvailable = false;
+
+// ─── Chip config ───
+var CHIP_CFG = {
+    esp32s3: { bootloader: 0x0, partitions: 0x8000, app: 0x10000, flashSize: '16MB' },
+    esp32p4: { bootloader: 0x2000, partitions: 0x8000, app: 0x10000, flashSize: '16MB' }
+};
+
+var CHIP_DISPLAY = {
+    esp32s3: 'ESP32-S3',
+    esp32p4: 'ESP32-P4'
+};
+
+// ─── Browser check ───
+if (!navigator.serial) {
+    browserCompat.textContent = '✗ WebSerial not available. Use Chrome/Edge 89+.';
+    browserCompat.style.color = '#f87171';
+    connectBtn.disabled = true;
+}
+
+// ─── Helpers ───
+function setProgress(pct, msg) {
+    pbar.style.display = 'block';
+    pfill.style.width = pct + '%';
+    pstatus.textContent = msg || '';
+}
+function hideProgress() {
+    pbar.style.display = 'none';
+    pfill.style.width = '0%';
+    pstatus.textContent = '';
+}
+
+function setWifiStatus(cls, msg) {
+    wifiStatus.className = 'save-status ' + cls;
+    wifiStatus.textContent = msg;
+}
+
+function checkBackend() {
+    var url = BACKEND_URL + '/health';
+    fetch(url, { method: 'GET', cache: 'no-store' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d && d.success) {
+                backendAvailable = true;
+                setWifiStatus('ready', 'Backend available. You can save WiFi config.');
+                updateWifiBtn();
+            } else {
+                backendOffline();
+            }
+        })
+        .catch(function(){
+            backendOffline();
+        });
+}
+
+function backendOffline() {
+    backendAvailable = false;
+    setWifiStatus('unavail', 'Backend not found. Run start-dual.bat or start-backend.bat to enable WiFi save.');
+    saveWifiBtn.disabled = true;
+}
+
+function updateWifiBtn() {
+    var ssid = wifiSsid.value.trim();
+    saveWifiBtn.disabled = !(backendAvailable && ssid.length > 0 && serialPort);
+    saveWifiBtn.textContent = backendAvailable
+        ? (serialPort ? 'Save WiFi to board' : 'Connect to board first')
+        : 'Backend unavailable';
+}
+
+function doSaveWifi() {
+    if (!backendAvailable) {
+        customAlert('WiFi backend is not running.\n\nRun start-dual.bat or start-backend.bat first.');
+        return;
+    }
+    if (!serialPort) {
+        customAlert('Connect to the board via WebSerial first.');
+        return;
+    }
+    var ssid = wifiSsid.value.trim();
+    if (!ssid) {
+        customAlert('Enter a network name (SSID).');
+        return;
+    }
+    var password = wifiPass.value;
+
+    setWifiStatus('saving', 'Saving WiFi config to board...');
+    saveWifiBtn.disabled = true;
+
+    var portName = serialPort.name || serialPort.getInfo().usbProductId || 'COM';
+    var payload = JSON.stringify({
+        port: portName,
+        chip: chipDetected || boardEl.value || 'esp32s3',
+        ssid: ssid,
+        password: password
+    });
+
+    fetch(BACKEND_URL + '/save-wifi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if (d && d.success) {
+            setWifiStatus('done', 'WiFi config saved! Board will reboot.');
+            customAlert('WiFi config saved successfully!\nSSID: ' + ssid);
+            wifiPass.value = '';
+        } else {
+            var errMsg = d && d.message ? d.message : 'Unknown error';
+            setWifiStatus('err', 'Failed: ' + errMsg);
+            customAlert('Save failed:\n' + errMsg);
+        }
+    })
+    .catch(function(err){
+        setWifiStatus('err', 'Backend error: ' + (err.message || err));
+        customAlert('Could not reach backend.\nCheck that start-backend.bat is running.');
+    })
+    .finally(function(){
+        saveWifiBtn.disabled = false;
+        updateWifiBtn();
+    });
+}
+
+function customAlert(msg) {
+    var d = document.createElement('div'); d.className = 'alert-overlay';
+    var h = msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    d.innerHTML = '<div class="alert-box"><div class="msg">'+h+'</div><button class="btn primary" onclick="this.parentElement.parentElement.remove()">OK</button></div>';
+    document.body.appendChild(d);
+    d.querySelector('.btn').focus();
+}
+
+function setPortState(connected, label) {
+    if (connected) {
+        statusDot.className = 'dot green';
+        portLabel.textContent = label || 'Connected';
+        connectBtn.style.display = 'none';
+        disconnectBtn.style.display = 'block';
+    } else {
+        statusDot.className = 'dot red';
+        portLabel.textContent = 'Disconnected';
+        connectBtn.style.display = 'block';
+        disconnectBtn.style.display = 'none';
+    }
+    updateFlashBtn();
+    updateWifiBtn();
+}
+
+function resolveBoard() {
+    var v = boardEl.value;
+    if (v === 'auto') {
+        if (chipDetected && CHIP_CFG[chipDetected]) return chipDetected;
+        return 'esp32s3';
+    }
+    return v;
+}
+
+function resolveChipName(espName) {
+    if (!espName) return '';
+    var n = espName.toLowerCase().replace(/[\s-]/g, '');
+    for (var k in CHIP_CFG) {
+        if (n.indexOf(k) >= 0) return k;
+    }
+    return '';
+}
+
+function readFileAsUint8(file) {
+    return new Promise(function(resolve, reject) {
+        var r = new FileReader();
+        r.onerror = function() { reject(new Error('Failed to read ' + file.name)); };
+        r.onload = function() { resolve(new Uint8Array(r.result)); };
+        r.readAsArrayBuffer(file);
+    });
+}
+
+// ─── Connect / Disconnect ───
+async function onConnect() {
+    if (serialPort) return;
+    try {
+        serialPort = await navigator.serial.requestPort();
+        statusDot.className = 'dot yellow';
+        portLabel.textContent = 'Opening…';
+
+        transport = new Transport(serialPort, false, true);
+        esploader = new ESPLoader({
+            transport: transport,
+            baudrate: 115200,
+            terminal: {
+                clean: function(){},
+                writeLine: function(d){ console.log('[esptool]', d); },
+                write: function(d){ console.log('[esptool]', d); }
+            },
+            debugLogging: false
+        });
+
+        var chipName = await esploader.main();
+        chipDetected = resolveChipName(chipName);
+
+        var displayName = chipDetected && CHIP_DISPLAY[chipDetected]
+            ? CHIP_DISPLAY[chipDetected]
+            : chipName || 'Unknown';
+
+        // Append USB VID if available
+        try {
+            var info = serialPort.getInfo();
+            if (info && info.usbVendorId) {
+                displayName += ' (USB:' + info.usbVendorId.toString(16) + ')';
+            }
+        } catch(e){}
+
+        setPortState(true, displayName);
+
+        if (boardEl.value === 'auto' && chipDetected) {
+            boardEl.value = chipDetected;
+        }
+
+        updateFlashBtn();
+    } catch (e) {
+        if (e.name === 'NotFoundError' || (e.message && e.message.indexOf('No port') >= 0)) {
+            serialPort = null;
+            setPortState(false, 'Cancelled');
+            return;
+        }
+        serialPort = null;
+        transport = null;
+        esploader = null;
+        setPortState(false, 'Error');
+        customAlert('Connection failed:\n' + (e.message || e));
+    }
+}
+
+async function onDisconnect() {
+    try {
+        if (transport) {
+            try { await transport.disconnect(); } catch(e){}
+        }
+    } catch(e){}
+    serialPort = null;
+    transport = null;
+    esploader = null;
+    chipDetected = '';
+    setPortState(false, 'Disconnected');
+}
+
+// ─── Flash mode ───
+function setType(t) {
+    flashType = t;
+    btnUpdate.className = 'btn ' + (t === 'update' ? 'primary active' : 'secondary');
+    btnFull.className = 'btn ' + (t === 'full' ? 'primary active' : 'secondary');
+    panelUpdate.classList.toggle('show', t === 'update');
+    panelFull.classList.toggle('show', t === 'full');
+    updateFlashBtn();
+}
+
+function onFiles() {
+    if (flashType === 'update') {
+        _fw = fwFile.files.length > 0 ? fwFile.files[0] : null;
+        if (_fw) folderInfoUpdate.textContent = _fw.name + ' (' + (_fw.size / 1024 / 1024).toFixed(1) + ' MB)';
+        folderInfoUpdate.className = 'folder-info' + (_fw ? ' ok' : '');
+    } else {
+        _fw = fwFileFull.files.length > 0 ? fwFileFull.files[0] : null;
+        _bl = blFile.files.length > 0 ? blFile.files[0] : null;
+        _pt = ptFile.files.length > 0 ? ptFile.files[0] : null;
+        var parts = [];
+        if (_fw) parts.push(_fw.name);
+        if (_bl) parts.push('bootloader.bin');
+        if (_pt) parts.push('partitions.bin');
+        if (parts.length === 3) {
+            folderInfoFull.textContent = parts.join(', ');
+            folderInfoFull.className = 'folder-info ok';
+        } else {
+            folderInfoFull.textContent = parts.length > 0
+                ? parts.join(', ') + ' (need ' + (3 - parts.length) + ' more)'
+                : 'Select 3 files or pick build folder.';
+            folderInfoFull.className = 'folder-info err';
+        }
+    }
+    updateFlashBtn();
+}
+
+async function pickBuildFolder(targetType) {
+    if (!window.showDirectoryPicker) {
+        var msg = 'Use Chrome/Edge 86+ for folder picking, or select files manually.';
+        folderInfoUpdate.textContent = msg;
+        folderInfoUpdate.className = 'folder-info err';
+        if (targetType === 'full') { folderInfoFull.textContent = msg; folderInfoFull.className = 'folder-info err'; }
+        return;
+    }
+    try {
+        if (targetType !== flashType) setType(targetType);
+        var dir = await window.showDirectoryPicker();
+
+        var entries = [];
+        for await (var e of dir.values()) {
+            if (e.kind === 'file' && e.name.endsWith('.bin')) entries.push(e);
+        }
+
+        var fwEntry = null, blEntry = null, ptEntry = null;
+        for (var i = 0; i < entries.length; i++) {
+            var h = entries[i];
+            if (h.name === 'bootloader.bin') blEntry = h;
+            else if (h.name === 'partitions.bin') ptEntry = h;
+            else if (!fwEntry) fwEntry = h;
+        }
+
+        if (!fwEntry) {
+            var errMsg = 'No firmware .bin found.';
+            if (targetType === 'update') { folderInfoUpdate.textContent = errMsg; folderInfoUpdate.className = 'folder-info err'; }
+            else { folderInfoFull.textContent = errMsg; folderInfoFull.className = 'folder-info err'; }
+            return;
+        }
+        if (targetType === 'full' && (!blEntry || !ptEntry)) {
+            folderInfoFull.textContent = 'Need bootloader.bin and partitions.bin.';
+            folderInfoFull.className = 'folder-info err';
+            return;
+        }
+
+        var fwObj = await fwEntry.getFile();
+        var blObj = blEntry ? await blEntry.getFile() : null;
+        var ptObj = ptEntry ? await ptEntry.getFile() : null;
+
+        if (targetType === 'update') {
+            _fw = fwObj; _bl = null; _pt = null;
+            fwFile.value = '';
+            folderInfoUpdate.textContent = 'Build folder: ' + fwObj.name + ' (' + (fwObj.size / 1024 / 1024).toFixed(1) + ' MB)';
+            folderInfoUpdate.className = 'folder-info ok';
+        } else {
+            _fw = fwObj; _bl = blObj; _pt = ptObj;
+            fwFileFull.value = ''; blFile.value = ''; ptFile.value = '';
+            folderInfoFull.textContent = 'Build folder: ' + fwObj.name + ', bootloader.bin, partitions.bin';
+            folderInfoFull.className = 'folder-info ok';
+        }
+        autoDetectBoard(dir.name);
+        updateFlashBtn();
+    } catch(e) {
+        if (e.name !== 'AbortError' && e.name !== 'SecurityError') {
+            var t = targetType;
+            if (t === 'update') { folderInfoUpdate.textContent = 'Error: ' + e.message; folderInfoUpdate.className = 'folder-info err'; }
+            else { folderInfoFull.textContent = 'Error: ' + e.message; folderInfoFull.className = 'folder-info err'; }
+        }
+    }
+}
+
+function autoDetectBoard(folderName) {
+    var n = folderName.toLowerCase();
+    if (n.indexOf('esp32p4') >= 0 || n.indexOf('p4') >= 0) boardEl.value = 'esp32p4';
+    else if (n.indexOf('esp32s3') >= 0 || n.indexOf('s3') >= 0) boardEl.value = 'esp32s3';
+}
+
+function updateFlashBtn() {
+    if (!serialPort || !transport) {
+        flashBtn.disabled = true;
+        flashBtn.textContent = 'Connect first';
+        return;
+    }
+    if (flashType === 'update') {
+        flashBtn.disabled = !_fw;
+        flashBtn.textContent = 'Flash Update';
+    } else {
+        flashBtn.disabled = !(_fw && _bl && _pt);
+        flashBtn.textContent = chkErase.checked ? 'Erase + Full Install' : 'Full Install';
+    }
+}
+
+// ─── Detect IP from boot output in transport buffer ───
+function scanBufferForIps() {
+    if (!transport) return [];
+    var data = transport.peek();
+    if (!data || data.length === 0) return [];
+
+    var text;
+    try {
+        text = new TextDecoder('utf-8', { fatal: false }).decode(data);
+    } catch(e) {
+        return [];
+    }
+
+    var ipPattern = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g;
+    var matches = text.match(ipPattern);
+    if (!matches) return [];
+
+    var ips = [];
+    for (var i = 0; i < matches.length; i++) {
+        var ip = matches[i];
+        if (ips.indexOf(ip) < 0 && !ip.startsWith('0.') && !ip.startsWith('255.') && ip !== '0.0.0.0' && ip !== '255.255.255.255') {
+            ips.push(ip);
+        }
+    }
+    return ips;
+}
+
+// ─── Main Flash ───
+async function doFlash() {
+    if (!serialPort || !transport || !esploader) {
+        customAlert('Connect to a board first.');
+        return;
+    }
+    if (!_fw) {
+        customAlert('Select a firmware .bin file.');
+        return;
+    }
+    if (flashType === 'full' && (!_bl || !_pt)) {
+        customAlert('Full install requires bootloader.bin and partitions.bin.');
+        return;
+    }
+
+    flashBtn.disabled = true;
+    setProgress(5, 'Preparing…');
+
+    try {
+        var chip = resolveBoard();
+        var cfg = CHIP_CFG[chip];
+        if (!cfg) { customAlert('Unknown chip: ' + chip); flashBtn.disabled = false; hideProgress(); return; }
+
+        setProgress(8, 'Reading files…');
+        var fwData = await readFileAsUint8(_fw);
+        var blData = null, ptData = null;
+        if (flashType === 'full') {
+            blData = await readFileAsUint8(_bl);
+            ptData = await readFileAsUint8(_pt);
+        }
+
+        setProgress(12, 'Connected to ' + (CHIP_DISPLAY[chip] || chip.toUpperCase()));
+
+        var fileArray = [];
+        if (flashType === 'full') {
+            fileArray.push({ data: blData, address: cfg.bootloader });
+            fileArray.push({ data: ptData, address: cfg.partitions });
+        }
+        fileArray.push({ data: fwData, address: cfg.app });
+
+        if (flashType === 'full' && chkErase.checked) {
+            setProgress(15, 'Erasing flash…');
+            await esploader.eraseFlash();
+            setProgress(22, 'Erase complete');
+        }
+
+        setProgress(25, 'Flashing…');
+
+        var flashOpts = {
+            fileArray: fileArray,
+            flashMode: 'dio',
+            flashFreq: '80m',
+            flashSize: cfg.flashSize,
+            eraseAll: false,
+            compress: true,
+            reportProgress: function(fileIndex, written, total) {
+                var pct = total > 0 ? (written / total) * 100 : 0;
+                setProgress(25 + (pct * 0.65), 'File ' + (fileIndex + 1) + '/' + fileArray.length + ' \u2014 ' + pct.toFixed(0) + '%');
+            }
+        };
+
+        await esploader.writeFlash(flashOpts);
+        setProgress(92, 'Flash complete, resetting…');
+
+        // Clear buffer, then hard-reset and watch for IP
+        transport.flushInput();
+        await esploader.after('hard_reset');
+
+        setProgress(95, 'Detecting IP…');
+
+        // Sample buffer at intervals for 8 seconds
+        var ips = [];
+        for (var attempt = 0; attempt < 16; attempt++) {
+            await new Promise(function(r) { setTimeout(r, 500); });
+            ips = scanBufferForIps();
+            if (ips.length > 0) break;
+        }
+
+        if (ips.length > 0) {
+            var ipDisplay = $('boardIpDisplay');
+            var ipText = $('boardIpText');
+            ipDisplay.style.display = 'block';
+            ipText.textContent = ips.join(', ');
+            setProgress(100, 'Done! IP: ' + ips[0]);
+        } else {
+            setProgress(100, 'Done!');
+        }
+
+        customAlert('Flash complete!');
+        setTimeout(hideProgress, 3000);
+
+    } catch (e) {
+        setProgress(0, '');
+        var msg = e.message || 'Unknown error';
+        customAlert('Flash failed:\n' + msg);
+    }
+
+    flashBtn.disabled = false;
+    if (!serialPort) {
+        flashBtn.textContent = 'Connect first';
+    }
+}
+
+// ─── Event wiring ───
+connectBtn.addEventListener('click', onConnect);
+disconnectBtn.addEventListener('click', onDisconnect);
+btnUpdate.addEventListener('click', function(){ setType('update'); });
+btnFull.addEventListener('click', function(){ setType('full'); });
+$('btnPickUpdate').addEventListener('click', function(){ pickBuildFolder('update'); });
+$('btnPickFull').addEventListener('click', function(){ pickBuildFolder('full'); });
+fwFile.addEventListener('change', onFiles);
+fwFileFull.addEventListener('change', onFiles);
+blFile.addEventListener('change', onFiles);
+ptFile.addEventListener('change', onFiles);
+chkErase.addEventListener('change', updateFlashBtn);
+flashBtn.addEventListener('click', doFlash);
+boardEl.addEventListener('change', updateFlashBtn);
+saveWifiBtn.addEventListener('click', doSaveWifi);
+wifiSsid.addEventListener('input', updateWifiBtn);
+wifiPass.addEventListener('input', updateWifiBtn);
+
+updateFlashBtn();
+checkBackend();
+</script>
+</body>
+</html>
