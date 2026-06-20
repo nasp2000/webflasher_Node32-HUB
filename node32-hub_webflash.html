@@ -192,13 +192,14 @@ select option{background:#1e2e3f}
 </div>
 </div>
 
-<div class="flash-section" id="monitorSection" style="display:none">
+<div class="flash-section" id="monitorSection">
     <h3 style="display:flex;justify-content:space-between;align-items:center">
         Serial Monitor
         <span style="display:flex;gap:6px">
-            <button class="btn secondary" id="monitorBtn" style="padding:4px 14px;font-size:0.78em;width:auto">&#9654; Start</button>
-            <button class="btn danger" id="monitorStopBtn" style="padding:4px 14px;font-size:0.78em;width:auto;display:none">&#9632; Stop</button>
             <button class="btn secondary" id="monitorClearBtn" style="padding:4px 14px;font-size:0.78em;width:auto">Clear</button>
+            <button class="btn secondary" id="monitorCopyBtn" style="padding:4px 14px;font-size:0.78em;width:auto">Copy</button>
+            <button class="btn connect" id="monitorConnectBtn" style="padding:4px 14px;font-size:0.78em;width:auto">Connect</button>
+            <button class="btn danger" id="monitorDisconnectBtn" style="padding:4px 14px;font-size:0.78em;width:auto;display:none">Disconnect</button>
         </span>
     </h3>
     <pre id="monitorOutput" style="background:#0f172a;border:1px solid #4a6a8a;border-radius:8px;padding:10px;height:160px;overflow-y:auto;font-size:0.78em;font-family:monospace;color:#e2e8f0;margin:0;white-space:pre-wrap;word-break:break-all"></pre>
@@ -226,11 +227,11 @@ var wifiSsid = $('wifiSsid'), wifiPass = $('wifiPass'), wifiPort = $('wifiPort')
 var saveWifiBtn = $('saveWifiBtn'), wifiStatus = $('wifiStatus');
 var monitorSection = $('monitorSection');
 var monitorOutput = $('monitorOutput');
-var monitorBtn = $('monitorBtn');
-var monitorStopBtn = $('monitorStopBtn');
 var monitorClearBtn = $('monitorClearBtn');
+var monitorCopyBtn = $('monitorCopyBtn');
+var monitorConnectBtn = $('monitorConnectBtn');
+var monitorDisconnectBtn = $('monitorDisconnectBtn');
 var monitorRunning = false;
-var monitorAbort = null;
 
 // ─── State ───
 var serialPort = null;
@@ -469,6 +470,8 @@ async function onConnect() {
         }
 
         updateFlashBtn();
+        // Auto-start serial monitor
+        setTimeout(startMonitor, 500);
     } catch (e) {
         if (e.name === 'NotFoundError' || (e.message && e.message.indexOf('No port') >= 0)) {
             serialPort = null;
@@ -762,19 +765,28 @@ function monitorAppend(text) {
 }
 
 var monitorReader = null;
+var monitorReader = null;
 var monitorDecoder = new TextDecoder();
+
+function updateMonitorBtnState() {
+    if (serialPort) {
+        monitorConnectBtn.style.display = 'none';
+        monitorDisconnectBtn.style.display = 'inline-block';
+    } else {
+        monitorConnectBtn.style.display = 'inline-block';
+        monitorDisconnectBtn.style.display = 'none';
+    }
+}
 
 async function startMonitor() {
     if (!serialPort || monitorRunning) return;
     try {
         if (!serialPort.readable) {
-            monitorAppend('[monitor] port not readable (flash in progress?)\n');
+            monitorAppend('[monitor] port not readable\n');
             return;
         }
         monitorReader = serialPort.readable.getReader();
         monitorRunning = true;
-        monitorBtn.style.display = 'none';
-        monitorStopBtn.style.display = 'inline-block';
         monitorAppend('[monitor] started\n');
         while (true) {
             var result = await monitorReader.read();
@@ -787,8 +799,6 @@ async function startMonitor() {
         }
     }
     monitorRunning = false;
-    monitorBtn.style.display = 'inline-block';
-    monitorStopBtn.style.display = 'none';
     monitorReader = null;
 }
 
@@ -798,17 +808,26 @@ function stopMonitor() {
         monitorReader = null;
     }
     monitorRunning = false;
-    monitorBtn.style.display = 'inline-block';
-    monitorStopBtn.style.display = 'none';
 }
 
 function clearMonitor() {
     monitorOutput.textContent = '';
 }
 
-function showMonitorSection(show) {
-    monitorSection.style.display = show ? 'block' : 'none';
-    if (!show) stopMonitor();
+function copyMonitor() {
+    var text = monitorOutput.textContent;
+    if (!text) return;
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).catch(function(){});
+    } else {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed'; ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch(e){}
+        document.body.removeChild(ta);
+    }
 }
 
 function setPortState(connected, label) {
@@ -818,12 +837,13 @@ function setPortState(connected, label) {
         connectBtn.style.display = 'none';
         disconnectBtn.style.display = 'block';
     } else {
+        stopMonitor();
         statusDot.className = 'dot red';
         portLabel.textContent = 'Disconnected';
         connectBtn.style.display = 'block';
         disconnectBtn.style.display = 'none';
     }
-    showMonitorSection(connected);
+    updateMonitorBtnState();
     updateFlashBtn();
     updateWifiBtn();
 }
@@ -847,11 +867,13 @@ wifiPort.addEventListener('input', updateWifiBtn);
 saveWifiBtn.addEventListener('click', doSaveWifi);
 wifiSsid.addEventListener('input', updateWifiBtn);
 wifiPass.addEventListener('input', updateWifiBtn);
-monitorBtn.addEventListener('click', startMonitor);
-monitorStopBtn.addEventListener('click', stopMonitor);
 monitorClearBtn.addEventListener('click', clearMonitor);
+monitorCopyBtn.addEventListener('click', copyMonitor);
+monitorConnectBtn.addEventListener('click', onConnect);
+monitorDisconnectBtn.addEventListener('click', onDisconnect);
 
 updateFlashBtn();
+updateMonitorBtnState();
 checkBackend();
 </script>
 </body>
