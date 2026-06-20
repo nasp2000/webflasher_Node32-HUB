@@ -45,10 +45,10 @@ exit /b
 ## }
 ## function New-LfsImage($ssid,$pass) {
 ##   if(!$mkfs){return $null}
-##   $tmp=[IO.Path]::GetTempPath()+'n32w_';[IO.Directory]::CreateDirectory($tmp)|Out-Null
+##   $tmp=[IO.Path]::Combine([IO.Path]::GetTempPath(),'n32w_');[IO.Directory]::CreateDirectory($tmp)|Out-Null
 ##   $json='{"wifi":{"ssid":"'+$ssid.Replace('"','\"')+'","password":"'+$pass.Replace('"','\"')+'"}}'
-##   [IO.File]::WriteAllText($tmp+'config.json',$json,[Text.Encoding]::UTF8)
-##   $out=$tmp+'lfs.img'
+##   [IO.File]::WriteAllText([IO.Path]::Combine($tmp,'config.json'),$json,[Text.Encoding]::UTF8)
+##   $out=[IO.Path]::Combine($tmp,'lfs.img')
 ##   $p=New-Object Diagnostics.ProcessStartInfo;$p.FileName=$mkfs;$p.Arguments="-c `"$tmp`" -s 6160384 `"$out`"";$p.UseShellExecute=$false;$p.RedirectStandardOutput=$true;$p.RedirectStandardError=$true;$p.CreateNoWindow=$true
 ##   $proc=[Diagnostics.Process]::Start($p);$proc.WaitForExit(30000)
 ##   if($proc.ExitCode-eq0 -and(Test-Path $out)){return $out}
@@ -66,7 +66,7 @@ exit /b
 ##   $a=@('--chip',$chip,'--before','default-reset','--after','hard-reset','--port',$b.port,'--baud','115200','write-flash',$so[$chip],$img)
 ##   $res=Invoke-Esptool $a
 ##   if($res.ok){Send-Json $c @{success=$true;message='WiFi saved'}}else{Send-Json $c @{success=$false;message=$res.log}500}
-##   Remove-Item -Recurse -Force "$([IO.Path]::GetTempPath())n32w_" -ErrorAction SilentlyContinue
+##   Remove-Item -Recurse -Force ([IO.Path]::Combine([IO.Path]::GetTempPath(),'n32w_')) -ErrorAction SilentlyContinue
 ## }
 ## function Get-LanIp {
 ##   $ips=@()
