@@ -47,23 +47,24 @@ exit /b
 ##   if(!$mkfs){return $null}
 ##   $tmp=[IO.Path]::Combine([IO.Path]::GetTempPath(),'n32w_');[IO.Directory]::CreateDirectory($tmp)|Out-Null
 ##   $json='{"wifi":{"ssid":"'+$ssid.Replace('"','\"')+'","password":"'+$pass.Replace('"','\"')+'"}}'
-##   [IO.File]::WriteAllText([IO.Path]::Combine($tmp,'config.json'),$json,[Text.Encoding]::UTF8)
+##   $cfg=[IO.Path]::Combine($tmp,'config.json');[IO.File]::WriteAllText($cfg,$json,[Text.Encoding]::UTF8)
 ##   $out=[IO.Path]::Combine($tmp,'lfs.img')
 ##   $p=New-Object Diagnostics.ProcessStartInfo;$p.FileName=$mkfs;$p.Arguments="-c `"$tmp`" -s 6160384 `"$out`"";$p.UseShellExecute=$false;$p.RedirectStandardOutput=$true;$p.RedirectStandardError=$true;$p.CreateNoWindow=$true
 ##   $proc=[Diagnostics.Process]::Start($p);$proc.WaitForExit(30000)
-##   if($proc.ExitCode-eq0 -and(Test-Path $out)){return $out}
-##   return $null
+##   $so=$proc.StandardOutput.ReadToEnd();$se=$proc.StandardError.ReadToEnd()
+##   if($proc.ExitCode-eq0 -and(Test-Path $out)){return @{ok=$true;path=$out}}
+##   return @{ok=$false;error="mkfs exit $($proc.ExitCode): $so $se".Trim()}
 ## }
 ## function Handle-SaveWifi($c,$r) {
 ##   $rd=[IO.StreamReader]::new($r.InputStream,[Text.Encoding]::UTF8);$raw=$rd.ReadToEnd();$rd.Close();$b=$raw|ConvertFrom-Json
 ##   if(!$b.ssid){Send-Json $c @{success=$false;message='Missing SSID'}400;return}
 ##   if(!$mkfs){Send-Json $c @{success=$false;message='mklittlefs not installed'}500;return}
 ##   if(!$tool){Send-Json $c @{success=$false;message='esptool not installed'}500;return}
-##   $img=New-LfsImage $b.ssid $b.password
-##   if(!$img){Send-Json $c @{success=$false;message='Failed to create LittleFS image'}500;return}
+##   $imgResult=New-LfsImage $b.ssid $b.password
+##   if(!$imgResult -or !$imgResult.ok){Send-Json $c @{success=$false;message='Failed to create LittleFS image: ' + $imgResult.error}500;return}
 ##   $chip=if($b.chip){$b.chip}else{'esp32s3'}
 ##   $so=@{esp32s3='0xA10000';esp32p4='0xA10000'}
-##   $a=@('--chip',$chip,'--before','default-reset','--after','hard-reset','--port',$b.port,'--baud','115200','write-flash',$so[$chip],$img)
+##   $a=@('--chip',$chip,'--before','default-reset','--after','hard-reset','--port',$b.port,'--baud','115200','write-flash',$so[$chip],$imgResult.path)
 ##   $res=Invoke-Esptool $a
 ##   if($res.ok){Send-Json $c @{success=$true;message='WiFi saved'}}else{Send-Json $c @{success=$false;message=$res.log}500}
 ##   Remove-Item -Recurse -Force ([IO.Path]::Combine([IO.Path]::GetTempPath(),'n32w_')) -ErrorAction SilentlyContinue
