@@ -162,6 +162,7 @@ select option{background:#1e2e3f}
 <div class="board-ip-display" id="boardIpDisplay">
     <span class="ip-label">Board IP</span>
     <span class="ip-value" id="boardIpText"></span>
+    <span class="ip-link" id="boardIpLink" style="display:none;margin-left:12px"><a href="#" target="_blank" style="color:#60d5fa;text-decoration:none" id="boardIpAnchor">&#127760; Open</a></span>
 </div>
 </div>
 
@@ -320,6 +321,13 @@ function doSaveWifi() {
         .then(function(d){
             if (d && d.success) {
                 setWifiStatus('done', 'WiFi config saved! Board will reboot.');
+                if (d.ip) {
+                    $('boardIpText').textContent = d.ip;
+                    $('boardIpDisplay').style.display = 'block';
+                    var anchor = $('boardIpAnchor');
+                    anchor.href = 'http://' + d.ip + '/';
+                    $('boardIpLink').style.display = 'inline';
+                }
                 customAlert('WiFi config saved successfully!\nSSID: ' + ssid);
                 wifiPass.value = '';
             } else {
@@ -705,6 +713,9 @@ async function doFlash() {
             var ipText = $('boardIpText');
             ipDisplay.style.display = 'block';
             ipText.textContent = ips.join(', ');
+            var anchor = $('boardIpAnchor');
+            anchor.href = 'http://' + ips[0] + '/';
+            $('boardIpLink').style.display = 'inline';
             setProgress(100, 'Done! IP: ' + ips[0]);
         } else {
             setProgress(100, 'Done!');

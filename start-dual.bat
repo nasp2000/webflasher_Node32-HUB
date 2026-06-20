@@ -67,9 +67,12 @@ exit /b
 ##   $so=@{esp32s3='0xA10000';esp32p4='0xA10000'}
 ##   $a=@('--chip',$chip,'--before','default-reset','--after','hard-reset','--port',$b.port,'--baud','115200','write-flash',$so[$chip],$imgResult.path)
 ##   $res=Invoke-Esptool $a
-##   if($res.ok){Send-Json $c @{success=$true;message='WiFi saved'}}else{Send-Json $c @{success=$false;message=$res.log}500}
+##   $ip=$null
+##   if($res.ok){
+##     try{$sp=New-Object IO.Ports.SerialPort $b.port,115200,None,8,One;$sp.ReadTimeout=200;$sp.Open();$o='';$sw=[Diagnostics.Stopwatch]::StartNew();while($sw.ElapsedMilliseconds-lt8000){try{$o+=$sp.ReadLine()+"`n"}catch{Start-Sleep-Milliseconds 100}};$sp.Close();$m=[regex]::Match($o,'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})');if($m.Success){$ip=$m.Value}}catch{}
+##     Send-Json $c @{success=$true;message='WiFi saved';ip=$ip}
+##   }else{Send-Json $c @{success=$false;message=$res.log}500}
 ##   Remove-Item -Recurse -Force ([IO.Path]::Combine([IO.Path]::GetTempPath(),'n32w_')) -ErrorAction SilentlyContinue
-## }
 ## function Get-LanIp {
 ##   $ips=@()
 ##   try{$n=[Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()|Where-Object{$_.OperationalStatus-eq'Up'-and$_.NetworkInterfaceType-ne'Loopback'};foreach($if in $n){$ua=$if.GetIPProperties().UnicastAddresses|Where-Object{$_.Address.AddressFamily-eq'InterNetwork'-and![Net.IPAddress]::IsLoopback($_.Address)};foreach($u in $ua){$a=$u.Address.IPAddressToString;if($a-notmatch'^169\.254' -and $a-notmatch'^0\.'){$ips+=$a}}}}catch{}return $ips
