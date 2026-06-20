@@ -176,6 +176,10 @@ select option{background:#1e2e3f}
         <label for="wifiPass">Password</label>
         <input type="text" id="wifiPass" placeholder="Leave empty for open networks" autocomplete="off">
     </div>
+    <div class="wifi-row">
+        <label for="wifiPort">Port</label>
+        <input type="text" id="wifiPort" placeholder="COM3" autocomplete="off">
+    </div>
     <button class="btn save" id="saveWifiBtn" disabled>Save WiFi to board</button>
 </div>
 
@@ -197,7 +201,7 @@ var blFile = $('blFile'), ptFile = $('ptFile');
 var chkErase = $('chkErase');
 var folderInfoUpdate = $('folderInfoUpdate'), folderInfoFull = $('folderInfoFull');
 var browserCompat = $('browserCompat');
-var wifiSsid = $('wifiSsid'), wifiPass = $('wifiPass');
+var wifiSsid = $('wifiSsid'), wifiPass = $('wifiPass'), wifiPort = $('wifiPort');
 var saveWifiBtn = $('saveWifiBtn'), wifiStatus = $('wifiStatus');
 
 // ─── State ───
@@ -272,10 +276,11 @@ function backendOffline() {
 
 function updateWifiBtn() {
     var ssid = wifiSsid.value.trim();
-    saveWifiBtn.disabled = !(backendAvailable && ssid.length > 0 && serialPort);
-    saveWifiBtn.textContent = backendAvailable
-        ? (serialPort ? 'Save WiFi to board' : 'Connect to board first')
-        : 'Backend unavailable';
+    var hasPort = serialPort || wifiPort.value.trim().length > 0;
+    saveWifiBtn.disabled = !(backendAvailable && ssid.length > 0 && hasPort);
+    saveWifiBtn.innerHTML = backendAvailable
+        ? (hasPort ? 'Save WiFi to board' : 'Connect to board first')
+        : 'Backend offline';
 }
 
 function doSaveWifi() {
@@ -297,10 +302,9 @@ function doSaveWifi() {
     setWifiStatus('saving', 'Saving WiFi config to board...');
     saveWifiBtn.disabled = true;
 
-    var portName = serialPort.name || savedPortName || '';
-    console.log('WiFi save port:', JSON.stringify(portName));
+    var portName = (serialPort && serialPort.name) || savedPortName || wifiPort.value.trim() || '';
     if (!portName) {
-        setWifiStatus('err', 'No serial port selected. Please reconnect the board.');
+        setWifiStatus('err', 'Enter the COM port (e.g. COM3) in the Port field above.');
         saveWifiBtn.disabled = false;
         return;
     }
@@ -395,6 +399,7 @@ async function onConnect() {
     try {
         serialPort = await navigator.serial.requestPort();
         savedPortName = serialPort.name || '';
+        wifiPort.value = savedPortName;
         statusDot.className = 'dot yellow';
         portLabel.textContent = 'Opening…';
 
@@ -724,6 +729,8 @@ ptFile.addEventListener('change', onFiles);
 chkErase.addEventListener('change', updateFlashBtn);
 flashBtn.addEventListener('click', doFlash);
 boardEl.addEventListener('change', updateFlashBtn);
+wifiSsid.addEventListener('input', updateWifiBtn);
+wifiPort.addEventListener('input', updateWifiBtn);
 saveWifiBtn.addEventListener('click', doSaveWifi);
 wifiSsid.addEventListener('input', updateWifiBtn);
 wifiPass.addEventListener('input', updateWifiBtn);
