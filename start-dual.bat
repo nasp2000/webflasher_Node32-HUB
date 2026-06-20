@@ -2,7 +2,7 @@
 cd /d "%~dp0"
 title Node32-HUB Configurator
 set "PSFILE=%TEMP%\n32hub_srv.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$l=@(Get-Content '%~f0'|Where-Object{$_ -like '##*'});$l=$l-replace'^##','';[IO.File]::WriteAllLines('%PSFILE%',$l,[Text.Encoding]::UTF8);&'%PSFILE%';Remove-Item '%PSFILE%'"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$l=@(Get-Content '%~f0'|Where-Object{$_ -like '##*'});$l=$l-replace'^##','';[IO.File]::WriteAllLines('%PSFILE%',$l,[Text.Encoding]::UTF8);&'%PSFILE%';Remove-Item '%PSFILE%'" || pause
 exit /b
 ## # Node32-HUB Unified Server
 ## $port=8765;$root=(Get-Location).Path
@@ -73,6 +73,7 @@ exit /b
 ##     Send-Json $c @{success=$true;message='WiFi saved';ip=$ip}
 ##   }else{Send-Json $c @{success=$false;message=$res.log}500}
 ##   Remove-Item -Recurse -Force ([IO.Path]::Combine([IO.Path]::GetTempPath(),'n32w_')) -ErrorAction SilentlyContinue
+## }
 ## function Get-LanIp {
 ##   $ips=@()
 ##   try{$n=[Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()|Where-Object{$_.OperationalStatus-eq'Up'-and$_.NetworkInterfaceType-ne'Loopback'};foreach($if in $n){$ua=$if.GetIPProperties().UnicastAddresses|Where-Object{$_.Address.AddressFamily-eq'InterNetwork'-and![Net.IPAddress]::IsLoopback($_.Address)};foreach($u in $ua){$a=$u.Address.IPAddressToString;if($a-notmatch'^169\.254' -and $a-notmatch'^0\.'){$ips+=$a}}}}catch{}return $ips
