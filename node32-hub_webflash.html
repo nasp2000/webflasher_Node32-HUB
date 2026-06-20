@@ -13,8 +13,11 @@ body{
 }
 .card{
     background:#2d3e52;border:2px solid #4a6a8a;border-radius:14px;
-    max-width:640px;width:100%;padding:28px 24px;margin-top:10px;
+    max-width:1000px;width:100%;padding:28px 24px;margin-top:10px;
 }
+.cols{display:flex;gap:16px}
+.cols .col{flex:1;min-width:0}
+.cols .flash-section,.cols .config-section{margin-bottom:0}
 h1{text-align:center;color:#60d5fa;font-size:1.6em;margin-bottom:4px;letter-spacing:1px}
 .sub{text-align:center;color:#94a3b8;font-size:0.85em;margin-bottom:18px}
 .row{margin-bottom:14px}
@@ -112,6 +115,8 @@ select option{background:#1e2e3f}
     <button class="btn danger" id="disconnectBtn" style="display:none">Disconnect</button>
 </div>
 
+<div class="cols">
+<div class="col">
 <div class="flash-section">
 <h3>Flash</h3>
 <div class="row">
@@ -165,7 +170,9 @@ select option{background:#1e2e3f}
     <span class="ip-link" id="boardIpLink" style="display:none;margin-left:12px"><a href="#" target="_blank" style="color:#60d5fa;text-decoration:none" id="boardIpAnchor">&#127760; Open</a></span>
 </div>
 </div>
+</div>
 
+<div class="col">
 <div class="config-section">
     <h3>WiFi Config</h3>
     <div class="save-status" id="wifiStatus"></div>
@@ -182,6 +189,19 @@ select option{background:#1e2e3f}
         <input type="text" id="wifiPort" placeholder="COM3" autocomplete="off">
     </div>
     <button class="btn save" id="saveWifiBtn" disabled>Save WiFi to board</button>
+</div>
+</div>
+
+<div class="flash-section" id="monitorSection" style="display:none">
+    <h3 style="display:flex;justify-content:space-between;align-items:center">
+        Serial Monitor
+        <span style="display:flex;gap:6px">
+            <button class="btn secondary" id="monitorBtn" style="padding:4px 14px;font-size:0.78em;width:auto">&#9654; Start</button>
+            <button class="btn danger" id="monitorStopBtn" style="padding:4px 14px;font-size:0.78em;width:auto;display:none">&#9632; Stop</button>
+            <button class="btn secondary" id="monitorClearBtn" style="padding:4px 14px;font-size:0.78em;width:auto">Clear</button>
+        </span>
+    </h3>
+    <pre id="monitorOutput" style="background:#0f172a;border:1px solid #4a6a8a;border-radius:8px;padding:10px;height:160px;overflow-y:auto;font-size:0.78em;font-family:monospace;color:#e2e8f0;margin:0;white-space:pre-wrap;word-break:break-all"></pre>
 </div>
 
 </div>
@@ -204,6 +224,13 @@ var folderInfoUpdate = $('folderInfoUpdate'), folderInfoFull = $('folderInfoFull
 var browserCompat = $('browserCompat');
 var wifiSsid = $('wifiSsid'), wifiPass = $('wifiPass'), wifiPort = $('wifiPort');
 var saveWifiBtn = $('saveWifiBtn'), wifiStatus = $('wifiStatus');
+var monitorSection = $('monitorSection');
+var monitorOutput = $('monitorOutput');
+var monitorBtn = $('monitorBtn');
+var monitorStopBtn = $('monitorStopBtn');
+var monitorClearBtn = $('monitorClearBtn');
+var monitorRunning = false;
+var monitorAbort = null;
 
 // ─── State ───
 var serialPort = null;
@@ -347,6 +374,7 @@ function doSaveWifi() {
     }
 
     if (serialPort && transport) {
+        stopMonitor();
         try { transport.disconnect(); } catch(e){}
         try { serialPort.close(); } catch(e){}
         serialPort = null;
@@ -354,7 +382,7 @@ function doSaveWifi() {
         esploader = null;
         setPortState(false, 'Disconnected');
         // Small delay to let OS release the port
-        setTimeout(doFetch, 500);
+        setTimeout(doFetch, 3000);
     } else {
         doFetch();
     }
@@ -368,21 +396,7 @@ function customAlert(msg) {
     d.querySelector('.btn').focus();
 }
 
-function setPortState(connected, label) {
-    if (connected) {
-        statusDot.className = 'dot green';
-        portLabel.textContent = label || 'Connected';
-        connectBtn.style.display = 'none';
-        disconnectBtn.style.display = 'block';
-    } else {
-        statusDot.className = 'dot red';
-        portLabel.textContent = 'Disconnected';
-        connectBtn.style.display = 'block';
-        disconnectBtn.style.display = 'none';
-    }
-    updateFlashBtn();
-    updateWifiBtn();
-}
+
 
 function resolveBoard() {
     var v = boardEl.value;
@@ -470,6 +484,7 @@ async function onConnect() {
 }
 
 async function onDisconnect() {
+    stopMonitor();
     try {
         if (transport) {
             try { await transport.disconnect(); } catch(e){}
@@ -632,6 +647,7 @@ function scanBufferForIps() {
 
 // ─── Main Flash ───
 async function doFlash() {
+    stopMonitor();
     if (!serialPort || !transport || !esploader) {
         customAlert('Connect to a board first.');
         return;
@@ -736,6 +752,82 @@ async function doFlash() {
     }
 }
 
+// ─── Serial Monitor ───
+function monitorAppend(text) {
+    monitorOutput.textContent += text;
+    monitorOutput.scrollTop = monitorOutput.scrollHeight;
+    if (monitorOutput.textContent.length > 50000) {
+        monitorOutput.textContent = monitorOutput.textContent.slice(-25000);
+    }
+}
+
+var monitorReader = null;
+var monitorDecoder = new TextDecoder();
+
+async function startMonitor() {
+    if (!serialPort || monitorRunning) return;
+    try {
+        if (!serialPort.readable) {
+            monitorAppend('[monitor] port not readable (flash in progress?)\n');
+            return;
+        }
+        monitorReader = serialPort.readable.getReader();
+        monitorRunning = true;
+        monitorBtn.style.display = 'none';
+        monitorStopBtn.style.display = 'inline-block';
+        monitorAppend('[monitor] started\n');
+        while (true) {
+            var result = await monitorReader.read();
+            if (result.done) break;
+            monitorAppend(monitorDecoder.decode(result.value, { stream: true }));
+        }
+    } catch (e) {
+        if (e.name !== 'AbortError') {
+            monitorAppend('[monitor] error: ' + (e.message || e) + '\n');
+        }
+    }
+    monitorRunning = false;
+    monitorBtn.style.display = 'inline-block';
+    monitorStopBtn.style.display = 'none';
+    monitorReader = null;
+}
+
+function stopMonitor() {
+    if (monitorReader) {
+        try { monitorReader.cancel(); } catch(e){}
+        monitorReader = null;
+    }
+    monitorRunning = false;
+    monitorBtn.style.display = 'inline-block';
+    monitorStopBtn.style.display = 'none';
+}
+
+function clearMonitor() {
+    monitorOutput.textContent = '';
+}
+
+function showMonitorSection(show) {
+    monitorSection.style.display = show ? 'block' : 'none';
+    if (!show) stopMonitor();
+}
+
+function setPortState(connected, label) {
+    if (connected) {
+        statusDot.className = 'dot green';
+        portLabel.textContent = label || 'Connected';
+        connectBtn.style.display = 'none';
+        disconnectBtn.style.display = 'block';
+    } else {
+        statusDot.className = 'dot red';
+        portLabel.textContent = 'Disconnected';
+        connectBtn.style.display = 'block';
+        disconnectBtn.style.display = 'none';
+    }
+    showMonitorSection(connected);
+    updateFlashBtn();
+    updateWifiBtn();
+}
+
 // ─── Event wiring ───
 connectBtn.addEventListener('click', onConnect);
 disconnectBtn.addEventListener('click', onDisconnect);
@@ -755,6 +847,9 @@ wifiPort.addEventListener('input', updateWifiBtn);
 saveWifiBtn.addEventListener('click', doSaveWifi);
 wifiSsid.addEventListener('input', updateWifiBtn);
 wifiPass.addEventListener('input', updateWifiBtn);
+monitorBtn.addEventListener('click', startMonitor);
+monitorStopBtn.addEventListener('click', stopMonitor);
+monitorClearBtn.addEventListener('click', clearMonitor);
 
 updateFlashBtn();
 checkBackend();

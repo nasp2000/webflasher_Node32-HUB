@@ -45,9 +45,9 @@ exit /b
 ## }
 ## function New-LfsImage($ssid,$pass) {
 ##   if(!$mkfs){return $null}
-##   $tmp=[IO.Path]::Combine([IO.Path]::GetTempPath(),'n32w_');[IO.Directory]::CreateDirectory($tmp)|Out-Null
+##   $tmp=[IO.Path]::Combine([IO.Path]::GetTempPath(),'n32w_');$cfgDir=[IO.Path]::Combine($tmp,'config');[IO.Directory]::CreateDirectory($cfgDir)|Out-Null
 ##   $json='{"wifi":{"ssid":"'+$ssid.Replace('"','\"')+'","password":"'+$pass.Replace('"','\"')+'"}}'
-##   $cfg=[IO.Path]::Combine($tmp,'config.json');[IO.File]::WriteAllText($cfg,$json,[Text.Encoding]::UTF8)
+##   $cfg=[IO.Path]::Combine($cfgDir,'main.json');[IO.File]::WriteAllText($cfg,$json,[Text.Encoding]::UTF8)
 ##   $out=[IO.Path]::Combine($tmp,'lfs.img')
 ##   $p=New-Object Diagnostics.ProcessStartInfo;$p.FileName=$mkfs;$p.Arguments="-c `"$tmp`" -s 6160384 `"$out`"";$p.UseShellExecute=$false;$p.RedirectStandardOutput=$true;$p.RedirectStandardError=$true;$p.CreateNoWindow=$true
 ##   $proc=[Diagnostics.Process]::Start($p);$proc.WaitForExit(30000)
