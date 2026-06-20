@@ -16,8 +16,8 @@ body{
     max-width:1000px;width:100%;padding:28px 24px;margin-top:10px;
 }
 .cols{display:flex;gap:16px;align-items:flex-start}
-.cols .col{flex:1;min-width:0}
-.cols .flash-section,.cols .config-section{margin-bottom:0}
+.cols .col{flex:1;min-width:0;margin-top:0}
+.cols .flash-section,.cols .config-section{margin-bottom:0;margin-top:0}
 h1{text-align:center;color:#60d5fa;font-size:1.6em;margin-bottom:4px;letter-spacing:1px}
 .sub{text-align:center;color:#94a3b8;font-size:0.85em;margin-bottom:18px}
 .row{margin-bottom:14px}
@@ -88,7 +88,6 @@ select option{background:#1e2e3f}
 
 .flash-section,.config-section{border:1px solid #334155;border-radius:10px;padding:16px;margin-bottom:16px;background:#0f172a}
 .flash-section h3,.config-section h3{color:#60d5fa;font-size:0.9em;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
-.flash-section{margin-top:14px}
 .wifi-row{margin-bottom:10px}
 .wifi-row:last-of-type{margin-bottom:12px}
 .save-status{font-size:0.78em;padding:6px 10px;border-radius:6px;margin-bottom:10px;display:none}
@@ -163,19 +162,13 @@ select option{background:#1e2e3f}
 <button class="btn primary" id="flashBtn" disabled>Connect first</button>
 <div class="pbar" id="pbar"><div class="pfill" id="pfill"></div></div>
 <div class="pstatus" id="pstatus"></div>
-
-<div class="board-ip-display" id="boardIpDisplay">
-    <span class="ip-label">Board IP</span>
-    <span class="ip-value" id="boardIpText"></span>
-    <span class="ip-link" id="boardIpLink" style="display:none;margin-left:12px"><a href="#" target="_blank" style="color:#60d5fa;text-decoration:none" id="boardIpAnchor">&#127760; Open</a></span>
-</div>
 </div>
 </div>
 
 <div class="col">
 <div class="config-section">
     <h3>WiFi Config</h3>
-    <div class="save-status" id="wifiStatus"></div>
+    <div class="save-status unavail" id="wifiStatus">Connect to the board first to manage WiFi.</div>
     <div class="wifi-row">
         <label for="wifiSsid">SSID</label>
         <input type="text" id="wifiSsid" placeholder="Network name" autocomplete="off">
@@ -184,11 +177,12 @@ select option{background:#1e2e3f}
         <label for="wifiPass">Password</label>
         <input type="text" id="wifiPass" placeholder="Leave empty for open networks" autocomplete="off">
     </div>
-    <div class="wifi-row">
-        <label for="wifiPort">Port</label>
-        <input type="text" id="wifiPort" placeholder="COM3" autocomplete="off">
-    </div>
-    <button class="btn save" id="saveWifiBtn" disabled>Save WiFi to board</button>
+    <button class="btn save" id="saveWifiBtn" disabled>Add WiFi</button>
+</div>
+<div class="board-ip-display" id="boardIpDisplay">
+    <span class="ip-label">Board IP</span>
+    <span class="ip-value" id="boardIpText"></span>
+    <span class="ip-link" id="boardIpLink" style="display:none;margin-left:12px"><a href="#" target="_blank" style="color:#60d5fa;text-decoration:none" id="boardIpAnchor">&#127760; Open</a></span>
 </div>
 </div>
 </div>
@@ -222,7 +216,7 @@ var blFile = $('blFile'), ptFile = $('ptFile');
 var chkErase = $('chkErase');
 var folderInfoUpdate = $('folderInfoUpdate'), folderInfoFull = $('folderInfoFull');
 var browserCompat = $('browserCompat');
-var wifiSsid = $('wifiSsid'), wifiPass = $('wifiPass'), wifiPort = $('wifiPort');
+var wifiSsid = $('wifiSsid'), wifiPass = $('wifiPass');
 var saveWifiBtn = $('saveWifiBtn'), wifiStatus = $('wifiStatus');
 var monitorSection = $('monitorSection');
 var monitorOutput = $('monitorOutput');
@@ -240,8 +234,7 @@ var esploader = null;
 var chipDetected = '';
 var flashType = 'update';
 var _fw = null, _bl = null, _pt = null;
-var BACKEND_URL = '';
-var backendAvailable = false;
+
 
 // ─── Chip config ───
 var CHIP_CFG = {
@@ -278,113 +271,46 @@ function setWifiStatus(cls, msg) {
     wifiStatus.textContent = msg;
 }
 
-function checkBackend() {
-    var url = BACKEND_URL + '/health';
-    fetch(url, { method: 'GET', cache: 'no-store' })
-        .then(function(r){ return r.json(); })
-        .then(function(d){
-            if (d && d.success) {
-                backendAvailable = true;
-                setWifiStatus('ready', 'Backend available. You can save WiFi config.');
-                updateWifiBtn();
-            } else {
-                backendOffline();
-            }
-        })
-        .catch(function(){
-            backendOffline();
-        });
-}
-
-function backendOffline() {
-    backendAvailable = false;
-    setWifiStatus('unavail', 'Backend not found. Run start-dual.bat or start-backend.bat to enable WiFi save.');
-    saveWifiBtn.disabled = true;
-}
-
 function updateWifiBtn() {
     var ssid = wifiSsid.value.trim();
-    var hasPort = serialPort || wifiPort.value.trim().length > 0;
-    saveWifiBtn.disabled = !(backendAvailable && ssid.length > 0 && hasPort);
-    saveWifiBtn.innerHTML = backendAvailable
-        ? (hasPort ? 'Save WiFi to board' : 'Connect to board first')
-        : 'Backend offline';
+    saveWifiBtn.disabled = !(serialPort && ssid.length > 0);
+    if (!serialPort) {
+        saveWifiBtn.innerHTML = 'Connect to board first';
+    } else {
+        saveWifiBtn.innerHTML = 'Save WiFi to board';
+    }
 }
 
-function doSaveWifi() {
-    if (!backendAvailable) {
-        customAlert('WiFi backend is not running.\n\nRun start-dual.bat or start-backend.bat first.');
-        return;
-    }
+async function doSaveWifi() {
     var ssid = wifiSsid.value.trim();
     if (!ssid) {
         customAlert('Enter a network name (SSID).');
         return;
     }
-    var password = wifiPass.value;
-    var portName = wifiPort.value.trim();
-    if (!portName) {
-        setWifiStatus('err', 'Enter the COM port (e.g. COM3) in the Port field above.');
+    if (!serialPort || !serialPort.writable) {
+        setWifiStatus('err', 'Board not connected. Click Connect first.');
         return;
     }
 
-    setWifiStatus('saving', 'Saving WiFi config to board...');
+    var password = wifiPass.value || '';
+    var cmd = 'WIFIADD ' + ssid + ' ' + password + '\n';
+    setWifiStatus('saving', 'Sending WIFIADD command...');
     saveWifiBtn.disabled = true;
 
-    // Close WebSerial port so esptool can open it
-    function doFetch() {
-        var payload = JSON.stringify({
-            port: portName,
-            chip: chipDetected || boardEl.value || 'esp32s3',
-            ssid: ssid,
-            password: password
-        });
-        fetch(BACKEND_URL + '/save-wifi', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: payload
-        })
-        .then(function(r){ return r.json(); })
-        .then(function(d){
-            if (d && d.success) {
-                setWifiStatus('done', 'WiFi config saved! Board will reboot.');
-                if (d.ip) {
-                    $('boardIpText').textContent = d.ip;
-                    $('boardIpDisplay').style.display = 'block';
-                    var anchor = $('boardIpAnchor');
-                    anchor.href = 'http://' + d.ip + '/';
-                    $('boardIpLink').style.display = 'inline';
-                }
-                customAlert('WiFi config saved successfully!\nSSID: ' + ssid);
-                wifiPass.value = '';
-            } else {
-                var errMsg = d && d.message ? d.message : 'Unknown error';
-                setWifiStatus('err', 'Failed: ' + errMsg);
-                customAlert('Save failed:\n' + errMsg);
-            }
-        })
-        .catch(function(err){
-            setWifiStatus('err', 'Backend error: ' + (err.message || err));
-            customAlert('Could not reach backend.\nCheck that start-backend.bat is running.');
-        })
-        .finally(function(){
-            saveWifiBtn.disabled = false;
-            updateWifiBtn();
-        });
-    }
+    try {
+        var writer = serialPort.writable.getWriter();
+        var encoder = new TextEncoder();
+        await writer.write(encoder.encode(cmd));
+        writer.releaseLock();
 
-    if (serialPort && transport) {
-        stopMonitor();
-        try { transport.disconnect(); } catch(e){}
-        try { serialPort.close(); } catch(e){}
-        serialPort = null;
-        transport = null;
-        esploader = null;
-        setPortState(false, 'Disconnected');
-        // Small delay to let OS release the port
-        setTimeout(doFetch, 3000);
-    } else {
-        doFetch();
+        setWifiStatus('done', 'WiFi config sent! Check serial monitor for confirmation.');
+        wifiPass.value = '';
+    } catch(e) {
+        setWifiStatus('err', 'Failed to send command: ' + (e.message || e));
+        customAlert('Could not write to serial port:\n' + (e.message || e));
+    } finally {
+        saveWifiBtn.disabled = false;
+        updateWifiBtn();
     }
 }
 
@@ -431,7 +357,6 @@ async function onConnect() {
     try {
         serialPort = await navigator.serial.requestPort();
         savedPortName = serialPort.name || '';
-        if (savedPortName) wifiPort.value = savedPortName;
         statusDot.className = 'dot yellow';
         portLabel.textContent = 'Opening…';
 
@@ -469,6 +394,24 @@ async function onConnect() {
         }
 
         updateFlashBtn();
+
+        // Release transport properly: cancel reader then reopen port for monitor
+        try {
+            if (transport) {
+                await transport.disconnect();
+            }
+        } catch(e){}
+        transport = null;
+        esploader = null;
+
+        // Give OS time to release the port before reopening
+        await new Promise(function(r) { setTimeout(r, 200); });
+
+        // Reopen port for monitoring (transport.disconnect() closed it)
+        try {
+            await serialPort.open({ baudRate: 115200 });
+        } catch(e){}
+
         // Auto-start serial monitor
         setTimeout(startMonitor, 500);
     } catch (e) {
@@ -487,11 +430,11 @@ async function onConnect() {
 
 async function onDisconnect() {
     stopMonitor();
-    try {
-        if (transport) {
-            try { await transport.disconnect(); } catch(e){}
-        }
-    } catch(e){}
+    if (transport) {
+        try { await transport.disconnect(); } catch(e){}
+    } else if (serialPort) {
+        try { await serialPort.close(); } catch(e){}
+    }
     serialPort = null;
     savedPortName = '';
     transport = null;
@@ -606,7 +549,7 @@ function autoDetectBoard(folderName) {
 }
 
 function updateFlashBtn() {
-    if (!serialPort || !transport) {
+    if (!serialPort) {
         flashBtn.disabled = true;
         flashBtn.textContent = 'Connect first';
         return;
@@ -650,7 +593,7 @@ function scanBufferForIps() {
 // ─── Main Flash ───
 async function doFlash() {
     stopMonitor();
-    if (!serialPort || !transport || !esploader) {
+    if (!serialPort) {
         customAlert('Connect to a board first.');
         return;
     }
@@ -670,6 +613,24 @@ async function doFlash() {
         var chip = resolveBoard();
         var cfg = CHIP_CFG[chip];
         if (!cfg) { customAlert('Unknown chip: ' + chip); flashBtn.disabled = false; hideProgress(); return; }
+
+        // Create transport + esploader if needed (e.g. after monitoring)
+        if (!transport || !esploader) {
+            setProgress(3, 'Reconnecting…');
+            await serialPort.close();
+            transport = new Transport(serialPort, false, true);
+            esploader = new ESPLoader({
+                transport: transport,
+                baudrate: 115200,
+                terminal: {
+                    clean: function(){},
+                    writeLine: function(d){ console.log('[esptool]', d); },
+                    write: function(d){ console.log('[esptool]', d); }
+                },
+                debugLogging: false
+            });
+            await esploader.main();
+        }
 
         setProgress(8, 'Reading files…');
         var fwData = await readFileAsUint8(_fw);
@@ -712,40 +673,35 @@ async function doFlash() {
         await esploader.writeFlash(flashOpts);
         setProgress(92, 'Flash complete, resetting…');
 
-        // Clear buffer, then hard-reset and watch for IP
+        // Hard-reset the board
         transport.flushInput();
         await esploader.after('hard_reset');
 
-        setProgress(95, 'Detecting IP…');
+        // Release transport and reopen port for monitor to show boot
+        try { if (transport) await transport.disconnect(); } catch(e){}
+        transport = null;
+        esploader = null;
 
-        // Sample buffer at intervals for 8 seconds
-        var ips = [];
-        for (var attempt = 0; attempt < 16; attempt++) {
-            await new Promise(function(r) { setTimeout(r, 500); });
-            ips = scanBufferForIps();
-            if (ips.length > 0) break;
-        }
+        await new Promise(function(r) { setTimeout(r, 300); });
 
-        if (ips.length > 0) {
-            var ipDisplay = $('boardIpDisplay');
-            var ipText = $('boardIpText');
-            ipDisplay.style.display = 'block';
-            ipText.textContent = ips.join(', ');
-            var anchor = $('boardIpAnchor');
-            anchor.href = 'http://' + ips[0] + '/';
-            $('boardIpLink').style.display = 'inline';
-            setProgress(100, 'Done! IP: ' + ips[0]);
-        } else {
-            setProgress(100, 'Done!');
-        }
+        try {
+            await serialPort.open({ baudRate: 115200 });
+            setTimeout(startMonitor, 300);
+        } catch(e){}
 
-        customAlert('Flash complete!');
+        setProgress(100, 'Done! Board rebooting…');
+        customAlert('Flash complete! Board is rebooting.');
         setTimeout(hideProgress, 3000);
 
     } catch (e) {
         setProgress(0, '');
         var msg = e.message || 'Unknown error';
         customAlert('Flash failed:\n' + msg);
+        // Try to reopen port for monitor after error
+        try {
+            await serialPort.open({ baudRate: 115200 });
+            setTimeout(startMonitor, 500);
+        } catch(e2){}
     }
 
     flashBtn.disabled = false;
@@ -761,6 +717,19 @@ function monitorAppend(text) {
     if (monitorOutput.textContent.length > 50000) {
         monitorOutput.textContent = monitorOutput.textContent.slice(-25000);
     }
+    // Auto-detect IP in serial output
+    var m = text.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+    if (m && m[1] && !m[1].startsWith('255.') && !m[1].startsWith('0.') && !m[1].startsWith('127.')) {
+        showBoardIp(m[1]);
+    }
+}
+
+function showBoardIp(ip) {
+    $('boardIpText').textContent = ip;
+    $('boardIpDisplay').style.display = 'block';
+    var anchor = $('boardIpAnchor');
+    anchor.href = 'http://' + ip + '/';
+    $('boardIpLink').style.display = 'inline';
 }
 
 var monitorReader = null;
@@ -801,9 +770,12 @@ async function startMonitor() {
     monitorReader = null;
 }
 
-function stopMonitor() {
+async function stopMonitor() {
     if (monitorReader) {
-        try { monitorReader.cancel(); } catch(e){}
+        try {
+            await monitorReader.cancel();
+        } catch(e){}
+        try { monitorReader.releaseLock(); } catch(e){}
         monitorReader = null;
     }
     monitorRunning = false;
@@ -862,10 +834,8 @@ chkErase.addEventListener('change', updateFlashBtn);
 flashBtn.addEventListener('click', doFlash);
 boardEl.addEventListener('change', updateFlashBtn);
 wifiSsid.addEventListener('input', updateWifiBtn);
-wifiPort.addEventListener('input', updateWifiBtn);
-saveWifiBtn.addEventListener('click', doSaveWifi);
-wifiSsid.addEventListener('input', updateWifiBtn);
 wifiPass.addEventListener('input', updateWifiBtn);
+saveWifiBtn.addEventListener('click', doSaveWifi);
 monitorClearBtn.addEventListener('click', clearMonitor);
 monitorCopyBtn.addEventListener('click', copyMonitor);
 monitorConnectBtn.addEventListener('click', onConnect);
@@ -873,7 +843,6 @@ monitorDisconnectBtn.addEventListener('click', onDisconnect);
 
 updateFlashBtn();
 updateMonitorBtnState();
-checkBackend();
 </script>
 </body>
 </html>

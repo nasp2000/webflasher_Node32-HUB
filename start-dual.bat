@@ -43,6 +43,21 @@ exit /b
 ##     $all=($out.Result.Trim()+' '+$err.Result.Trim()).Trim();return @{exit=$proc.ExitCode;log=$all;ok=($proc.ExitCode-eq0)}
 ##   }catch{return @{exit=1;log=$_.Exception.Message;ok=$false}}
 ## }
+## function Invoke-EsptoolWithRetry($a,$retries=5) {
+##   $delay=3; $last=$null
+##   for($i=0; $i -lt $retries; $i++) {
+##     $res=Invoke-Esptool $a; $last=$res
+##     if($res.ok){return $res}
+##     if($res.log -match 'PermissionError|busy|could not open port|Access denied|Acesso negado'){
+##       if($i -lt ($retries-1)){
+##         Write-Host "  Port busy, retrying in ${delay}s... ($($i+1)/$retries)" -ForegroundColor Yellow
+##         Start-Sleep -Seconds $delay; $delay=[Math]::Min($delay+2,15); continue
+##       }
+##     }
+##     return $res
+##   }
+##   return $last
+## }
 ## function New-LfsImage($ssid,$pass) {
 ##   if(!$mkfs){return $null}
 ##   $tmp=[IO.Path]::Combine([IO.Path]::GetTempPath(),'n32w_');$cfgDir=[IO.Path]::Combine($tmp,'config');[IO.Directory]::CreateDirectory($cfgDir)|Out-Null
@@ -66,7 +81,7 @@ exit /b
 ##   $chip=if($b.chip){$b.chip}else{'esp32s3'}
 ##   $so=@{esp32s3='0xA10000';esp32p4='0xA10000'}
 ##   $a=@('--chip',$chip,'--before','default-reset','--after','hard-reset','--port',$b.port,'--baud','115200','write-flash',$so[$chip],$imgResult.path)
-##   $res=Invoke-Esptool $a
+##   $res=Invoke-EsptoolWithRetry $a
 ##   $ip=$null
 ##   if($res.ok){
 ##     try{$sp=New-Object IO.Ports.SerialPort $b.port,115200,None,8,One;$sp.ReadTimeout=200;$sp.Open();$o='';$sw=[Diagnostics.Stopwatch]::StartNew();while($sw.ElapsedMilliseconds-lt8000){try{$o+=$sp.ReadLine()+"`n"}catch{Start-Sleep-Milliseconds 100}};$sp.Close();$m=[regex]::Match($o,'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})');if($m.Success){$ip=$m.Value}}catch{}
