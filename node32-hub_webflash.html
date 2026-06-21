@@ -98,12 +98,29 @@ select option{background:#1e2e3f}
 .save-status.err{display:block;background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5}
 .btn.save{background:#8b5cf6;color:#fff;margin-top:4px}
 .btn.save:hover:not(:disabled){background:#7c3aed}
+
+/* ── File Viewer Overlay ── */
+.file-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:998}
+.file-overlay-box{background:#2d3e52;border:2px solid #4a6a8a;border-radius:14px;max-width:560px;width:92%;padding:28px 24px;color:#f0f9ff;text-align:center;animation:fadeSlideIn .2s ease}
+@keyframes fadeSlideIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.file-overlay-box h2{color:#60d5fa;font-size:1.15em;margin-bottom:4px;letter-spacing:.5px}
+.file-overlay-box .folder-name{color:#94a3b8;font-size:0.82em;margin-bottom:16px}
+.file-list{list-style:none;padding:0;margin:0 0 18px;text-align:left}
+.file-list li{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;background:#1e2e3f;border:1px solid #4a6a8a;border-radius:8px;font-size:0.88em;transition:border-color .15s}
+.file-list li:hover{border-color:#60d5fa}
+.file-list li.selected{border-color:#34d399;background:#064e3b20}
+.file-list .file-check{width:18px;height:18px;accent-color:#60d5fa;cursor:pointer;flex-shrink:0}
+.file-list .file-icon{font-size:1.1em;flex-shrink:0}
+.file-list .file-name{flex:1;color:#f0f9ff;font-weight:600}
+.file-list .file-size{color:#64748b;font-size:0.82em;flex-shrink:0}
+.file-overlay-box .fo-btns{display:flex;gap:10px;justify-content:center}
+.file-overlay-box .fo-btns .btn{min-width:120px}
 </style>
 </head>
 <body>
 <div class="card">
 <h1>Node32‑HUB</h1>
-<div class="sub">WebFlash <span id="browserCompat" style="font-size:0.82em;color:#fbbf24">(requires Chrome/Edge 89+)</span> &middot; <a href="https://github.com/nasp2000/webflasher_Node32-HUB" target="_blank" style="color:#60d5fa;text-decoration:none">&#127760; source</a></div>
+<div class="sub">WebFlash <span id="browserCompat" style="font-size:0.82em;color:#fbbf24">(requires Chrome/Edge 89+)</span> &middot; <a href="https://github.com/nasp2000/webflasher_Node32-HUB" target="_blank" style="color:#60d5fa;text-decoration:none">&#127760; Ver no GitHub</a></div>
 
 <div class="connect-row">
     <div class="port-info" id="portInfo">
@@ -198,6 +215,30 @@ select option{background:#1e2e3f}
         </span>
     </h3>
     <pre id="monitorOutput" style="background:#0f172a;border:1px solid #4a6a8a;border-radius:8px;padding:10px;height:160px;overflow-y:auto;font-size:0.78em;font-family:monospace;color:#e2e8f0;margin:0;white-space:pre-wrap;word-break:break-all"></pre>
+</div>
+
+<div class="file-overlay" id="fileOverlay" style="display:none">
+<div class="file-overlay-box">
+    <h2 id="foTitle">Build Folder Files</h2>
+    <div class="folder-name" id="foFolderName"></div>
+    <ul class="file-list" id="foFileList"></ul>
+    <div class="fo-btns">
+        <button class="btn primary" id="foConfirm">Confirm Selection</button>
+        <button class="btn secondary" id="foCancel">Cancel</button>
+    </div>
+</div>
+</div>
+
+<div class="file-overlay" id="fileOverlay" style="display:none">
+<div class="file-overlay-box">
+    <h2 id="foTitle">Build Folder Files</h2>
+    <div class="folder-name" id="foFolderName"></div>
+    <ul class="file-list" id="foFileList"></ul>
+    <div class="fo-btns">
+        <button class="btn primary" id="foConfirm">Confirm Selection</button>
+        <button class="btn secondary" id="foCancel">Cancel</button>
+    </div>
+</div>
 </div>
 
 <script type="module">
@@ -307,14 +348,16 @@ async function doSaveWifi() {
         wifiPass.value = '';
 
         // Wait for the board to save config, then hardware-reset via DTR/RTS
+        // Normal boot: keep GPIO0 HIGH (RTS=0) while pulsing EN (DTR=1→0)
         await new Promise(function(r) { setTimeout(r, 1500); });
 
         try {
-            await serialPort.setSignals({ dataTerminalReady: false, requestToSend: true });
-            await new Promise(function(r) { setTimeout(r, 100); });
+            // Assert reset (EN LOW) while keeping GPIO0 HIGH = normal boot
             await serialPort.setSignals({ dataTerminalReady: true, requestToSend: false });
             await new Promise(function(r) { setTimeout(r, 100); });
+            // Release reset → board boots normally
             await serialPort.setSignals({ dataTerminalReady: false, requestToSend: false });
+            await new Promise(function(r) { setTimeout(r, 300); });
         } catch(sigErr) {
             console.warn('Reset signal failed:', sigErr);
         }
@@ -378,7 +421,7 @@ async function onConnect() {
         transport = new Transport(serialPort, false, true);
         esploader = new ESPLoader({
             transport: transport,
-            baudrate: 115200,
+            baudrate: 921600,
             terminal: {
                 clean: function(){},
                 writeLine: function(d){ console.log('[esptool]', d); },
@@ -494,6 +537,136 @@ function onFiles() {
     updateFlashBtn();
 }
 
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+function getFileIcon(name) {
+    if (name === 'bootloader.bin') return '⚡';
+    if (name === 'partitions.bin') return '📐';
+    return '🔧';
+}
+
+// Pending folder state for the file viewer overlay
+var _pendingDir = null;
+var _pendingEntries = [];
+var _pendingTargetType = '';
+
+function showFileOverlay(dirName, entries, targetType) {
+    var overlay = $('fileOverlay');
+    var title = $('foTitle');
+    var folderName = $('foFolderName');
+    var list = $('foFileList');
+
+    title.textContent = targetType === 'update' ? '📂 Files Found — Update Mode' : '📂 Files Found — Full Install';
+    folderName.textContent = dirName;
+    list.innerHTML = '';
+
+    for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        var li = document.createElement('li');
+        li.setAttribute('data-idx', i);
+
+        var checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'file-check';
+        checkbox.checked = true;
+        checkbox.dataset.idx = i;
+        checkbox.addEventListener('change', function() {
+            li.classList.toggle('selected', this.checked);
+        });
+
+        var icon = document.createElement('span');
+        icon.className = 'file-icon';
+        icon.textContent = getFileIcon(entry.name);
+
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'file-name';
+        nameSpan.textContent = entry.name;
+
+        var sizeSpan = document.createElement('span');
+        sizeSpan.className = 'file-size';
+        sizeSpan.textContent = formatFileSize(entry.size);
+
+        li.appendChild(checkbox);
+        li.appendChild(icon);
+        li.appendChild(nameSpan);
+        li.appendChild(sizeSpan);
+        li.classList.add('selected');
+        list.appendChild(li);
+    }
+
+    overlay.style.display = 'flex';
+}
+
+function hideFileOverlay() {
+    $('fileOverlay').style.display = 'none';
+    _pendingDir = null;
+    _pendingEntries = [];
+    _pendingTargetType = '';
+}
+
+function confirmFileSelection() {
+    var list = $('foFileList');
+    var checks = list.querySelectorAll('.file-check');
+    var selected = [];
+    checks.forEach(function(chk) {
+        if (chk.checked) {
+            selected.push(_pendingEntries[parseInt(chk.dataset.idx)]);
+        }
+    });
+
+    var targetType = _pendingTargetType;
+    var dirName = _pendingDir ? _pendingDir.name : '';
+
+    var fwEntry = null, blEntry = null, ptEntry = null;
+    for (var i = 0; i < selected.length; i++) {
+        var h = selected[i];
+        if (h.name === 'bootloader.bin') blEntry = h;
+        else if (h.name === 'partitions.bin') ptEntry = h;
+        else if (!fwEntry) fwEntry = h;
+    }
+
+    if (!fwEntry) {
+        var errMsg = 'No firmware .bin found in selection.';
+        if (targetType === 'update') { folderInfoUpdate.textContent = errMsg; folderInfoUpdate.className = 'folder-info err'; }
+        else { folderInfoFull.textContent = errMsg; folderInfoFull.className = 'folder-info err'; }
+        hideFileOverlay();
+        return;
+    }
+    if (targetType === 'full' && (!blEntry || !ptEntry)) {
+        folderInfoFull.textContent = 'Need bootloader.bin and partitions.bin in your selection.';
+        folderInfoFull.className = 'folder-info err';
+        hideFileOverlay();
+        return;
+    }
+
+    applySelectedFiles(targetType, fwEntry, blEntry, ptEntry);
+    hideFileOverlay();
+}
+
+async function applySelectedFiles(targetType, fwEntry, blEntry, ptEntry) {
+    var fwObj = await fwEntry.getFile();
+    var blObj = blEntry ? await blEntry.getFile() : null;
+    var ptObj = ptEntry ? await ptEntry.getFile() : null;
+
+    if (targetType === 'update') {
+        _fw = fwObj; _bl = null; _pt = null;
+        fwFile.value = '';
+        folderInfoUpdate.textContent = 'Build folder: ' + fwObj.name + ' (' + formatFileSize(fwObj.size) + ')';
+        folderInfoUpdate.className = 'folder-info ok';
+    } else {
+        _fw = fwObj; _bl = blObj; _pt = ptObj;
+        fwFileFull.value = ''; blFile.value = ''; ptFile.value = '';
+        folderInfoFull.textContent = 'Build folder: ' + fwObj.name + ', bootloader.bin, partitions.bin';
+        folderInfoFull.className = 'folder-info ok';
+    }
+    if (_pendingDir) autoDetectBoard(_pendingDir.name);
+    updateFlashBtn();
+}
+
 async function pickBuildFolder(targetType) {
     if (!window.showDirectoryPicker) {
         var msg = 'Use Chrome/Edge 86+ for folder picking, or select files manually.';
@@ -511,43 +684,18 @@ async function pickBuildFolder(targetType) {
             if (e.kind === 'file' && e.name.endsWith('.bin')) entries.push(e);
         }
 
-        var fwEntry = null, blEntry = null, ptEntry = null;
-        for (var i = 0; i < entries.length; i++) {
-            var h = entries[i];
-            if (h.name === 'bootloader.bin') blEntry = h;
-            else if (h.name === 'partitions.bin') ptEntry = h;
-            else if (!fwEntry) fwEntry = h;
-        }
-
-        if (!fwEntry) {
-            var errMsg = 'No firmware .bin found.';
+        if (entries.length === 0) {
+            var errMsg = 'No .bin files found in this folder.';
             if (targetType === 'update') { folderInfoUpdate.textContent = errMsg; folderInfoUpdate.className = 'folder-info err'; }
             else { folderInfoFull.textContent = errMsg; folderInfoFull.className = 'folder-info err'; }
             return;
         }
-        if (targetType === 'full' && (!blEntry || !ptEntry)) {
-            folderInfoFull.textContent = 'Need bootloader.bin and partitions.bin.';
-            folderInfoFull.className = 'folder-info err';
-            return;
-        }
 
-        var fwObj = await fwEntry.getFile();
-        var blObj = blEntry ? await blEntry.getFile() : null;
-        var ptObj = ptEntry ? await ptEntry.getFile() : null;
-
-        if (targetType === 'update') {
-            _fw = fwObj; _bl = null; _pt = null;
-            fwFile.value = '';
-            folderInfoUpdate.textContent = 'Build folder: ' + fwObj.name + ' (' + (fwObj.size / 1024 / 1024).toFixed(1) + ' MB)';
-            folderInfoUpdate.className = 'folder-info ok';
-        } else {
-            _fw = fwObj; _bl = blObj; _pt = ptObj;
-            fwFileFull.value = ''; blFile.value = ''; ptFile.value = '';
-            folderInfoFull.textContent = 'Build folder: ' + fwObj.name + ', bootloader.bin, partitions.bin';
-            folderInfoFull.className = 'folder-info ok';
-        }
-        autoDetectBoard(dir.name);
-        updateFlashBtn();
+        // Store pending state and show the file viewer overlay
+        _pendingDir = dir;
+        _pendingEntries = entries;
+        _pendingTargetType = targetType;
+        showFileOverlay(dir.name, entries, targetType);
     } catch(e) {
         if (e.name !== 'AbortError' && e.name !== 'SecurityError') {
             var t = targetType;
@@ -607,7 +755,7 @@ function scanBufferForIps() {
 
 // ─── Main Flash ───
 async function doFlash() {
-    stopMonitor();
+    await stopMonitor();
     if (!serialPort) {
         customAlert('Connect to a board first.');
         return;
@@ -632,11 +780,17 @@ async function doFlash() {
         // Create transport + esploader if needed (e.g. after monitoring)
         if (!transport || !esploader) {
             setProgress(3, 'Reconnecting…');
+            // Ensure port is properly closed before reopening
+            try {
+                if (serialPort.readable) await serialPort.readable.cancel();
+                if (serialPort.writable) await serialPort.writable.abort();
+            } catch(e){}
             await serialPort.close();
+            await new Promise(function(r) { setTimeout(r, 200); });
             transport = new Transport(serialPort, false, true);
             esploader = new ESPLoader({
                 transport: transport,
-                baudrate: 115200,
+                baudrate: 921600,
                 terminal: {
                     clean: function(){},
                     writeLine: function(d){ console.log('[esptool]', d); },
@@ -681,31 +835,45 @@ async function doFlash() {
             compress: true,
             reportProgress: function(fileIndex, written, total) {
                 var pct = total > 0 ? (written / total) * 100 : 0;
-                setProgress(25 + (pct * 0.65), 'File ' + (fileIndex + 1) + '/' + fileArray.length + ' \u2014 ' + pct.toFixed(0) + '%');
+                setProgress(25 + (pct * 0.65), 'File ' + (fileIndex + 1) + '/' + fileArray.length + ' \u2014 ' + pct.toFixed(0) + '% (' + Math.round(written / 1024) + ' KB / ' + Math.round(total / 1024) + ' KB)');
             }
         };
 
         await esploader.writeFlash(flashOpts);
         setProgress(92, 'Flash complete, resetting…');
 
-        // Hard-reset the board
-        transport.flushInput();
-        await esploader.after('hard_reset');
+        // Reset via DTR/RTS — normal boot (keep GPIO0 HIGH)
+        try {
+            transport.flushInput();
+        } catch(e){}
+
+        // Assert reset (DTR=1 → EN LOW) while keeping GPIO0 HIGH (RTS=0) = normal boot
+        try {
+            await serialPort.setSignals({ dataTerminalReady: true, requestToSend: false });
+            await new Promise(function(r) { setTimeout(r, 100); });
+            // Release reset → board boots into firmware
+            await serialPort.setSignals({ dataTerminalReady: false, requestToSend: false });
+            await new Promise(function(r) { setTimeout(r, 300); });
+        } catch(sigErr) {
+            console.warn('DTR/RTS reset failed:', sigErr);
+            // Fallback: try esploader hard_reset
+            try { await esploader.after('hard_reset'); } catch(e2){}
+        }
 
         // Release transport and reopen port for monitor to show boot
         try { if (transport) await transport.disconnect(); } catch(e){}
         transport = null;
         esploader = null;
 
-        await new Promise(function(r) { setTimeout(r, 300); });
+        await new Promise(function(r) { setTimeout(r, 500); });
 
         try {
             await serialPort.open({ baudRate: 115200 });
-            setTimeout(startMonitor, 300);
+            setTimeout(startMonitor, 400);
         } catch(e){}
 
         setProgress(100, 'Done! Board rebooting…');
-        customAlert('Flash complete! Board is rebooting.');
+        customAlert('Flash complete! Board is rebooting.\n\nIf the board does not restart automatically, press the RESET button or unplug and replug the USB cable.');
         setTimeout(hideProgress, 3000);
 
     } catch (e) {
@@ -714,6 +882,7 @@ async function doFlash() {
         customAlert('Flash failed:\n' + msg);
         // Try to reopen port for monitor after error
         try {
+            await new Promise(function(r) { setTimeout(r, 200); });
             await serialPort.open({ baudRate: 115200 });
             setTimeout(startMonitor, 500);
         } catch(e2){}
@@ -790,10 +959,14 @@ async function stopMonitor() {
         try {
             await monitorReader.cancel();
         } catch(e){}
-        try { monitorReader.releaseLock(); } catch(e){}
+        try {
+            await monitorReader.releaseLock();
+        } catch(e){}
         monitorReader = null;
     }
     monitorRunning = false;
+    // Small delay to let the stream fully release
+    await new Promise(function(r) { setTimeout(r, 150); });
 }
 
 function clearMonitor() {
@@ -855,6 +1028,9 @@ monitorClearBtn.addEventListener('click', clearMonitor);
 monitorCopyBtn.addEventListener('click', copyMonitor);
 monitorConnectBtn.addEventListener('click', onConnect);
 monitorDisconnectBtn.addEventListener('click', onDisconnect);
+
+$('foConfirm').addEventListener('click', confirmFileSelection);
+$('foCancel').addEventListener('click', hideFileOverlay);
 
 updateFlashBtn();
 updateMonitorBtnState();
