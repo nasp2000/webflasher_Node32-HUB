@@ -322,6 +322,43 @@ function updateWifiBtn() {
     }
 }
 
+async function readSerialAck(expectPattern, timeoutMs) {
+    // Temporarily stop monitor to take over the reader
+    await stopMonitor();
+    var reader = serialPort.readable.getReader();
+    var decoder = new TextDecoder();
+    var buf = '';
+    var deadline = Date.now() + timeoutMs;
+    var found = false;
+
+    try {
+        while (Date.now() < deadline) {
+            var remaining = deadline - Date.now();
+            if (remaining <= 0) break;
+            // Read with timeout (check every 200ms)
+            var result = await Promise.race([
+                reader.read(),
+                new Promise(function(r) { setTimeout(r, Math.min(200, remaining)); }).then(function() { return {done: false, value: undefined}; })
+            ]);
+            if (result.done) break;
+            if (result.value) {
+                var text = decoder.decode(result.value, {stream: true});
+                buf += text;
+                monitorAppend(text);
+                if (buf.indexOf(expectPattern) >= 0) {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        return {found: found, buffer: buf};
+    } finally {
+        try { reader.releaseLock(); } catch(e){}
+        // Restart monitor
+        startMonitor();
+    }
+}
+
 async function doSaveWifi() {
     var ssid = wifiSsid.value.trim();
     if (!ssid) {
@@ -344,18 +381,25 @@ async function doSaveWifi() {
         await writer.write(encoder.encode(cmd));
         writer.releaseLock();
 
-        setWifiStatus('saving', 'WiFi config sent — saving and rebooting…');
+        setWifiStatus('saving', 'Waiting for board confirmation…');
         wifiPass.value = '';
 
-        // Wait for the board to save config, then hardware-reset via DTR/RTS
-        // Normal boot: keep GPIO0 HIGH (RTS=0) while pulsing EN (DTR=1→0)
-        await new Promise(function(r) { setTimeout(r, 1500); });
+        // Read serial output until we see the WIFIADD confirmation or timeout
+        var ack = await readSerialAck('WIFIADD: saved', 8000);
 
+        if (!ack.found) {
+            setWifiStatus('err', 'Board did not confirm save — check connection and try again.');
+            customAlert('No WIFIADD confirmation received from the board.\n\nThe command was sent but the board may not have received it.\nCheck the serial monitor output above for details.');
+            return;
+        }
+
+        setWifiStatus('saving', 'WiFi saved — rebooting…');
+
+        // Hardware-reset via DTR/RTS to boot with new config
+        // Normal boot: keep GPIO0 HIGH (RTS=0) while pulsing EN (DTR=1→0)
         try {
-            // Assert reset (EN LOW) while keeping GPIO0 HIGH = normal boot
             await serialPort.setSignals({ dataTerminalReady: true, requestToSend: false });
             await new Promise(function(r) { setTimeout(r, 100); });
-            // Release reset → board boots normally
             await serialPort.setSignals({ dataTerminalReady: false, requestToSend: false });
             await new Promise(function(r) { setTimeout(r, 300); });
         } catch(sigErr) {
