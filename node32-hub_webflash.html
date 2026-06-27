@@ -292,7 +292,8 @@ var CHIP_DISPLAY = {
 if (!navigator.serial) {
     browserCompat.textContent = '✗ WebSerial not available. Use Chrome/Edge 89+.';
     browserCompat.style.color = '#f87171';
-    connectBtn.disabled = true;
+    console.error('WebSerial is not available in this browser');
+    console.log('navigator.serial:', navigator.serial);
 }
 
 // ─── Helpers ───
@@ -393,7 +394,18 @@ async function doSaveWifi() {
             return;
         }
 
-        setWifiStatus('saving', 'WiFi saved — rebooting…');
+        // Wait for the board to signal it's ready to reboot (optional "Restarting" message)
+        // This ensures LittleFS flush is complete before we trigger the reset
+        await readSerialAck('Restarting', 3000);
+
+        setWifiStatus('saving', 'WiFi saved — waiting for board to write to flash…');
+
+        // Wait for the board to fully flush LittleFS before rebooting.
+        // The WIFIADD confirmation only means the command was received;
+        // the firmware still needs time (~1.5s) to commit data to flash.
+        await new Promise(function(r) { setTimeout(r, 1500); });
+
+        setWifiStatus('saving', 'Rebooting board…');
 
         // Hardware-reset via DTR/RTS to boot with new config
         // Normal boot: keep GPIO0 HIGH (RTS=0) while pulsing EN (DTR=1→0)
@@ -401,7 +413,7 @@ async function doSaveWifi() {
             await serialPort.setSignals({ dataTerminalReady: true, requestToSend: false });
             await new Promise(function(r) { setTimeout(r, 100); });
             await serialPort.setSignals({ dataTerminalReady: false, requestToSend: false });
-            await new Promise(function(r) { setTimeout(r, 300); });
+            await new Promise(function(r) { setTimeout(r, 500); });
         } catch(sigErr) {
             console.warn('Reset signal failed:', sigErr);
         }
@@ -456,6 +468,8 @@ function readFileAsUint8(file) {
 // ─── Connect / Disconnect ───
 async function onConnect() {
     if (serialPort) return;
+    console.log('Connect button clicked');
+    console.log('navigator.serial available:', !!navigator.serial);
     try {
         serialPort = await navigator.serial.requestPort();
         savedPortName = serialPort.name || '';
@@ -517,6 +531,9 @@ async function onConnect() {
         // Auto-start serial monitor
         setTimeout(startMonitor, 500);
     } catch (e) {
+        console.error('Connection error:', e);
+        console.error('Error name:', e.name);
+        console.error('Error message:', e.message);
         if (e.name === 'NotFoundError' || (e.message && e.message.indexOf('No port') >= 0)) {
             serialPort = null;
             setPortState(false, 'Cancelled');
