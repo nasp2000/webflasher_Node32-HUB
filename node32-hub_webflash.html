@@ -267,8 +267,8 @@ var _fw = null, _bl = null, _pt = null;
 
 // ─── Chip config ───
 var CHIP_CFG = {
-    esp32s3: { bootloader: 0x0, partitions: 0x8000, app: 0x10000, flashSize: '16MB' },
-    esp32p4: { bootloader: 0x2000, partitions: 0x8000, app: 0x10000, flashSize: '16MB' }
+    esp32s3: { bootloader: 0x0, partitions: 0x8000, app: 0x10000, app1: 0x510000, flashSize: '16MB' },
+    esp32p4: { bootloader: 0x2000, partitions: 0x8000, app: 0x10000, app1: 0x510000, flashSize: '16MB' }
 };
 
 var CHIP_DISPLAY = {
@@ -863,8 +863,15 @@ async function doFlash() {
         if (flashType === 'full') {
             fileArray.push({ data: blData, address: cfg.bootloader });
             fileArray.push({ data: ptData, address: cfg.partitions });
+            // Full install also writes both OTA partitions + marks ota_0 as active
+            fileArray.push({ data: fwData, address: cfg.app });       // app0
+            fileArray.push({ data: fwData, address: cfg.app1 });      // app1
+        } else {
+            // Update: write to BOTH OTA partitions so the board boots the new
+            // firmware regardless of which slot is currently active.
+            fileArray.push({ data: fwData, address: cfg.app });       // app0
+            fileArray.push({ data: fwData, address: cfg.app1 });      // app1
         }
-        fileArray.push({ data: fwData, address: cfg.app });
 
         if (flashType === 'full' && chkErase.checked) {
             setProgress(15, 'Erasing flash…');
