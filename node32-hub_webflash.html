@@ -928,7 +928,7 @@ async function doFlash() {
         } catch(e){}
 
         setProgress(100, 'Done! Board rebooting…');
-        customAlert('Flash complete! Board is rebooting.\n\nIf the board does not restart automatically, press the RESET button or unplug and replug the USB cable.');
+        customAlert('Flash complete! Board is rebooting.\n\nIf the board does not restart:\n1. Unplug and replug the USB cable — the board will boot the new firmware.\n2. Or press the RESET button if available.');
         setTimeout(hideProgress, 3000);
 
     } catch (e) {
