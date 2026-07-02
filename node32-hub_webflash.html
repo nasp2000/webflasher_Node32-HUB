@@ -312,40 +312,20 @@ function updateWifiBtn() {
 }
 
 async function readSerialAck(expectPattern, timeoutMs) {
-    // Temporarily stop monitor to take over the reader
-    await stopMonitor();
-    var reader = serialPort.readable.getReader();
-    var decoder = new TextDecoder();
-    var buf = '';
+    // Keep the monitor running — poll its accumulated text for the pattern.
+    // Stopping the monitor and creating a separate reader causes data loss
+    // during the transition (WebSerial discards buffered data on reader cancel).
     var deadline = Date.now() + timeoutMs;
-    var found = false;
-
-    try {
-        while (Date.now() < deadline) {
-            var remaining = deadline - Date.now();
-            if (remaining <= 0) break;
-            // Read with timeout (check every 200ms)
-            var result = await Promise.race([
-                reader.read(),
-                new Promise(function(r) { setTimeout(r, Math.min(200, remaining)); }).then(function() { return {done: false, value: undefined}; })
-            ]);
-            if (result.done) break;
-            if (result.value) {
-                var text = decoder.decode(result.value, {stream: true});
-                buf += text;
-                monitorAppend(text);
-                if (buf.indexOf(expectPattern) >= 0) {
-                    found = true;
-                    break;
-                }
-            }
+    var prevLen = 0;
+    while (Date.now() < deadline) {
+        await new Promise(function(r) { setTimeout(r, 200); });
+        var cur = monitorOutput.textContent;
+        if (cur.length > prevLen) {
+            prevLen = cur.length;
+            if (cur.indexOf(expectPattern) >= 0) return {found: true};
         }
-        return {found: found, buffer: buf};
-    } finally {
-        try { reader.releaseLock(); } catch(e){}
-        // Restart monitor
-        startMonitor();
     }
+    return {found: false};
 }
 
 async function doSaveWifi() {
